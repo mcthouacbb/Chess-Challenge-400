@@ -238,7 +238,7 @@ public class MyBot : IChessBot
             // if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
             if (timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
                 break;
-            Console.WriteLine(nodes);
+            //Console.WriteLine(nodes);
             //Console.WriteLine($"Mine Depth: {i}, Move: {bestMove} eval: {eval} nodes: {nodes}");
             currMove = bestMove;
         }
