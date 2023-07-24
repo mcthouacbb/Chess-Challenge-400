@@ -2,13 +2,40 @@
 using static ChessChallenge.Chess.BitBoardUtility;
 using System;
 
+/*
+ * Features
+ *     - Evaluation
+ *         - Material Values
+ *         - Piece-Square tables(files f-h are mirrored from files a-d)
+ *         - Tapered Evaluation(interpolating from middle-game to end-game)
+ *     - Search
+ *         - Iterative Deepening
+ *         - Mate Distance Pruning
+ *         - Null move pruning
+ *         - Transposition Table
+ *             - Only stores moves to save tokens
+ *         - Move Ordering
+ *             - tt moves
+ *             - MVV_LVA(most valuable victim, least valuable attacker)
+ *             - Killer move heuristic
+ *         - Check extension
+ *         - Captures-only Quiescence Search
+ *     - Time management
+ *         - fixed allocation at start of search
+ *         - time allocated = time remaining / 40
+ *         - Check time every 2048 nodes to avoid overhead with invoking clock
+ *     - Initialization
+ *         - All static data is stored in a giant array of 64 bit unsigned integers
+ *         - Data is decoded using Buffer.BlockCopy
+ */
+
 public class MyBot : IChessBot
 {
-    private Move bestMove;
+    private Move bestMove, currMove;
     private Board board;
     private Timer timer;
 
-    private int ply, millisAlloced;
+    private int ply, millisAlloced, nodes, phase, evalMG, evalEG;
     private bool shouldStop;
     //int nodes = 0;
 
@@ -17,7 +44,7 @@ public class MyBot : IChessBot
     // 0-5 = middlegame material, 6-11 = endgame material, 12-17 = phase weights
     short[] MAT_PHASE = new short[18];
 
-	sbyte[] HALF_PSQT = new sbyte[384], MVV_LVA = new sbyte[36];
+    sbyte[] HALF_PSQT = new sbyte[384], MVV_LVA = new sbyte[36];
 
 
     // pack static arrays into 64 bit unsigned integers, and then use Buffer.BlockCopy to extract them
@@ -26,9 +53,9 @@ public class MyBot : IChessBot
     // The values are in the main branch under the Sirius/src/eval in material.h, phase.h, and psqt.cpp
     // Additionally, the code for tuning the parameters is in the tune branch under Sirius/src/tune
     ulong[] ARRAYS_INIT = new ulong[]
-	{
+    {
         // MVV_LVA
-		1733323143564695823, 3107790562467916834, 14683016086159413, 1443966850258900235,
+        1733323143564695823, 3107790562467916834, 14683016086159413, 1443966850258900235,
         // first 4 bytes is MVV_LVA, last 4 bytes is MAT_PHASE
         74591169479321630,
         // MAT_PHASE 2-17
@@ -85,7 +112,7 @@ public class MyBot : IChessBot
         1447363017716796675,
         1589210978859747066,
         16497497759637960425,
-	};
+    };
 
     // first index 0-1
     //     0 = middlegame
@@ -107,9 +134,18 @@ public class MyBot : IChessBot
 
     Move[] ttMoves = new Move[33554432];
 
-    void sortMoves(Move[] moves)
+    ulong ttIndex
     {
-        Move hashMove = ttMoves[board.ZobristKey % 33554432];
+        get
+        {
+            return board.ZobristKey % 33554432;
+        }
+    }
+
+    // sorts moves with TT moves, MVV_LVA for captures, and killer moves
+    void sortMoves(Span<Move> moves)
+    {
+        Move hashMove = ttMoves[ttIndex];
 
         for (int i = 0; i < moves.Length; i++)
         {
@@ -127,7 +163,7 @@ public class MyBot : IChessBot
             moveScores[i] = -score;
         }
 
-        Array.Sort(moveScores, moves, 0, moves.Length);
+        MemoryExtensions.Sort(moveScores.AsSpan(0, moves.Length), moves);
     }
 
     public MyBot()
@@ -141,6 +177,7 @@ public class MyBot : IChessBot
             for (int j = 0; j < 4; j++)
                 PSQT[2 * i + j] = PSQT[2 * i + 7 - j] = HALF_PSQT[i + j];
 
+        // uncomment to print out eval parameters
         /*for (int i = 0; i < 6; i++)
         {
             Console.Write("{");
@@ -152,22 +189,22 @@ public class MyBot : IChessBot
         }
 
         for (int i = 0; i < 3; i++)
-		{
-			Console.Write("{");
-			for (int j = 0; j < 6; j++)
-			{
-				Console.Write($"{MAT_PHASE[6 * i + j]}, ");
-			}
-			Console.WriteLine("}");
-		}
+        {
+            Console.Write("{");
+            for (int j = 0; j < 6; j++)
+            {
+                Console.Write($"{MAT_PHASE[6 * i + j]}, ");
+            }
+            Console.WriteLine("}");
+        }
 
         for (int i = 0; i < 2; i++)
         {
             Console.WriteLine("{");
             for (int j = 0; j < 6; j++)
-			{
+            {
                 Console.WriteLine($"\t{((PieceType)(j + 1)).ToString()}");
-				Console.WriteLine("\t{");
+                Console.WriteLine("\t{");
                 for (int y = 0; y < 8; y++)
                 {
                     Console.Write("\t\t");
@@ -177,8 +214,8 @@ public class MyBot : IChessBot
                     }
                     Console.WriteLine();
                 }
-				Console.WriteLine("\t}");
-			}
+                Console.WriteLine("\t}");
+            }
             Console.WriteLine("}");
         }*/
     }
@@ -188,14 +225,11 @@ public class MyBot : IChessBot
         // use 2.5% of remaining time(decent strategy that doesn't take up many tokens)
         millisAlloced = timer.MillisecondsRemaining / 40;
         shouldStop = false;
-        ply = 0;
-        //nodes = 0;
+        ply = nodes = 0;
 
-		this.board = board;
+        this.board = board;
         this.timer = timer;
 
-        // in case the search aborts on the first
-        Move move = Move.NullMove;
         for (int i = 1; i < 128; i++)
         {
             Search(i, -200000, 200000, false);
@@ -204,44 +238,46 @@ public class MyBot : IChessBot
             // if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
             if (timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
                 break;
+            Console.WriteLine(nodes);
             //Console.WriteLine($"Mine Depth: {i}, Move: {bestMove} eval: {eval} nodes: {nodes}");
-            move = bestMove;
+            currMove = bestMove;
         }
-        return move;
+        return currMove;
     }
 
     int evaluate()
-	{
-        int phase = 242, evalMG = 0, evalEG = 0;
+    {
+        phase = 242;
+        evalMG = evalEG = 0;
 
-		for (int i = 0; i < 6; i++)
-		{
-			ulong whiteBB = board.GetPieceBitboard((PieceType)(i + 1), true),
-				blackBB = board.GetPieceBitboard((PieceType)(i + 1), false);
+        for (int i = 0; i < 6; i++)
+        {
+            ulong whiteBB = board.GetPieceBitboard((PieceType)(i + 1), true),
+                blackBB = board.GetPieceBitboard((PieceType)(i + 1), false);
 
             while (whiteBB != 0)
-			{
-				int sq = PopLSB(ref whiteBB);
-				evalMG += PSQT[i * 64 + (sq ^ 0b111000)] + MAT_PHASE[i];
-				evalEG += PSQT[384 + i * 64 + (sq ^ 0b111000)] + MAT_PHASE[6 + i];
-				phase -= MAT_PHASE[12 + i];
-			}
+            {
+                int sq = PopLSB(ref whiteBB);
+                evalMG += PSQT[i * 64 + (sq ^ 0b111000)] + MAT_PHASE[i];
+                evalEG += PSQT[384 + i * 64 + (sq ^ 0b111000)] + MAT_PHASE[6 + i];
+                phase -= MAT_PHASE[12 + i];
+            }
 
-			while (blackBB != 0)
-			{
-				int sq = PopLSB(ref blackBB);
-				evalMG -= PSQT[i * 64 + sq] + MAT_PHASE[i];
-				evalEG -= PSQT[384 + i * 64 + sq] + MAT_PHASE[6 + i];
-				phase -= MAT_PHASE[12 + i];
-			}
-		}
+            while (blackBB != 0)
+            {
+                int sq = PopLSB(ref blackBB);
+                evalMG -= PSQT[i * 64 + sq] + MAT_PHASE[i];
+                evalEG -= PSQT[384 + i * 64 + sq] + MAT_PHASE[6 + i];
+                phase -= MAT_PHASE[12 + i];
+            }
+        }
 
         return (evalMG * (242 - phase) + evalEG * phase) / (board.IsWhiteToMove ? 242 : -242);
     }
 
     int Search(int depth, int alpha, int beta, bool doNull)
     {
-        if (timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
+        if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
         {
             shouldStop = true;
             return alpha;
@@ -249,36 +285,32 @@ public class MyBot : IChessBot
 
         // if we already found a faster mate, no need to search deeper
         alpha = Math.Max(alpha, ply - 32000);
-		beta = Math.Min(beta, 32000 - ply);
-		// max ply is 127
-		if (alpha >= beta || ply >= 127)
-			return alpha;
+        beta = Math.Min(beta, 32000 - ply);
+        // max ply is 127
+        if (alpha >= beta || ply >= 127)
+            return alpha;
 
-		if (board.IsDraw())
+        if (board.IsDraw())
             return 0;
 
         if (depth <= 0)
             return QSearch(alpha, beta);
 
         // null move pruning + another dumb hack for braces
-        if (doNull && !board.IsInCheck())
-            // ensure there is at least 1 non-pawn pieces on the board to avoid common zugzwang cases
-            if ((
-                    (board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
-                    board.GetPieceBitboard(PieceType.Pawn, board.IsWhiteToMove))
-                != 0 && depth >= 3)
+        if (doNull && depth >= 3 && (
+                (board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
+                board.GetPieceBitboard(PieceType.Pawn, board.IsWhiteToMove))
+            != 0)
+            if (board.TrySkipTurn())
             {
-                // already checked for checks, can't fail
-                board.TrySkipTurn();
                 int nullScore = -Search(depth - 3, -beta, -beta + 1, false);
                 board.UndoSkipTurn();
                 if (nullScore >= beta)
-                {
                     return beta;
-                }
             }
 
-        var moves = board.GetLegalMoves();
+        Span<Move> moves = stackalloc Move[256];
+        board.GetLegalMovesNonAlloc(ref moves);
 
         // board.IsDraw() already detects stalemate, so no need to check for it again
         if (moves.Length == 0)
@@ -296,17 +328,17 @@ public class MyBot : IChessBot
             int score = -Search(depth - (board.IsInCheck() ? 0 : 1), -beta, -alpha, true);
             ply--;
             board.UndoMove(move);
-			if (shouldStop)
-				return alpha;
+            if (shouldStop)
+                return alpha;
 
-			if (score >= beta)
+            if (score >= beta)
             {
                 if (move != killerMoves[ply, 0] && move.CapturePieceType == PieceType.None)
                 {
                     killerMoves[ply, 1] = killerMoves[ply, 0];
                     killerMoves[ply, 0] = move;
                 }
-                ttMoves[board.ZobristKey % 33554432] = move;
+                ttMoves[ttIndex] = move;
                 return beta;
             }
 
@@ -319,11 +351,12 @@ public class MyBot : IChessBot
             }
         }
 
-        ttMoves[board.ZobristKey % 33554432] = best;
+        ttMoves[ttIndex] = best;
 
         return alpha;
     }
 
+    // basic quiescence search
     int QSearch(int alpha, int beta)
     {
         int eval = evaluate();
@@ -334,7 +367,8 @@ public class MyBot : IChessBot
         if (ply >= 128)
             return alpha;
 
-        var captures = board.GetLegalMoves(true);
+        Span<Move> captures = stackalloc Move[256];
+        board.GetLegalMovesNonAlloc(ref captures, true);
         sortMoves(captures);
 
         foreach(Move capture in captures)
