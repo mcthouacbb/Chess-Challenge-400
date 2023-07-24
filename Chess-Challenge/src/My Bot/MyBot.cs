@@ -101,7 +101,7 @@ public class MyBot : IChessBot
     //     square
     // index calculation
     //     firstIndex * 384 + secondIndex * 64 + thirdIndex
-    int[] PSQT = new int[768];
+    int[] PSQT = new int[768], moveScores = new int[256];
 
     Move[,] killerMoves = new Move[128,2];
 
@@ -109,7 +109,6 @@ public class MyBot : IChessBot
 
     void sortMoves(Move[] moves)
     {
-        var scores = new int[moves.Length];
         Move hashMove = ttMoves[board.ZobristKey % 33554432];
 
         for (int i = 0; i < moves.Length; i++)
@@ -125,10 +124,10 @@ public class MyBot : IChessBot
                 score = -100;
 
             // negate score to invert comparison and sort in descending order without using expensive comparator(token-wise)
-            scores[i] = -score;
+            moveScores[i] = -score;
         }
 
-        Array.Sort(scores, moves);
+        Array.Sort(moveScores, moves, 0, moves.Length);
     }
 
     public MyBot()
@@ -140,10 +139,48 @@ public class MyBot : IChessBot
         // dumb hack to get rid of braces, don't do this in real code
         for (int i = 0; i < 384; i += 4)
             for (int j = 0; j < 4; j++)
+                PSQT[2 * i + j] = PSQT[2 * i + 7 - j] = HALF_PSQT[i + j];
+
+        /*for (int i = 0; i < 6; i++)
+        {
+            Console.Write("{");
+            for (int j = 0; j < 6; j++)
             {
-                PSQT[2 * i + j] = HALF_PSQT[i + j];
-                PSQT[2 * i + 7 - j] = HALF_PSQT[i + j];
+                Console.Write($"{MVV_LVA[6 * i + j]}, ");
             }
+            Console.WriteLine("}");
+        }
+
+        for (int i = 0; i < 3; i++)
+		{
+			Console.Write("{");
+			for (int j = 0; j < 6; j++)
+			{
+				Console.Write($"{MAT_PHASE[6 * i + j]}, ");
+			}
+			Console.WriteLine("}");
+		}
+
+        for (int i = 0; i < 2; i++)
+        {
+            Console.WriteLine("{");
+            for (int j = 0; j < 6; j++)
+			{
+                Console.WriteLine($"\t{((PieceType)(j + 1)).ToString()}");
+				Console.WriteLine("\t{");
+                for (int y = 0; y < 8; y++)
+                {
+                    Console.Write("\t\t");
+                    for (int x = 0; x < 8; x++)
+                    {
+                        Console.Write($"{PSQT[384 * i + 64 * j + 8 * y + x],4}, ");
+                    }
+                    Console.WriteLine();
+                }
+				Console.WriteLine("\t}");
+			}
+            Console.WriteLine("}");
+        }*/
     }
 
     public Move Think(Board board, Timer timer)
@@ -161,13 +198,13 @@ public class MyBot : IChessBot
         Move move = Move.NullMove;
         for (int i = 1; i < 128; i++)
         {
-            int eval = Search(i, -200000, 200000, false);
+            Search(i, -200000, 200000, false);
             if (shouldStop)
                 break;
             // if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
             if (timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
                 break;
-            //Console.WriteLine($"Mine Depth: {i}, Move: {bestMove} eval: {eval}");
+            //Console.WriteLine($"Mine Depth: {i}, Move: {bestMove} eval: {eval} nodes: {nodes}");
             move = bestMove;
         }
         return move;
@@ -199,13 +236,11 @@ public class MyBot : IChessBot
 			}
 		}
 
-		//int phaseFactor = (phase * 256 + 121) / 242;
         return (evalMG * (242 - phase) + evalEG * phase) / (board.IsWhiteToMove ? 242 : -242);
     }
 
     int Search(int depth, int alpha, int beta, bool doNull)
     {
-        //nodes++;
         if (timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
         {
             shouldStop = true;
@@ -305,7 +340,6 @@ public class MyBot : IChessBot
         foreach(Move capture in captures)
         {
             board.MakeMove(capture);
-            //nodes++;
             int score = -QSearch(-beta, -alpha);
             board.UndoMove(capture);
 
