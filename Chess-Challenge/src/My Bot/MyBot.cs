@@ -1,6 +1,6 @@
 ﻿using ChessChallenge.API;
-using static ChessChallenge.Chess.BitBoardUtility;
 using System;
+using static ChessChallenge.API.BitboardHelper;
 
 /*
  * Features
@@ -35,7 +35,7 @@ public class MyBot : IChessBot
     private Board board;
     private Timer timer;
 
-    private int ply, millisAlloced, nodes, phase, evalMG, evalEG, sq, it;
+    private int ply, millisAlloced, nodes, phase, evalMG, evalEG, sq, it, psqtIdx;
     private bool shouldStop;
     //int nodes = 0;
 
@@ -182,8 +182,7 @@ public class MyBot : IChessBot
         Buffer.BlockCopy(ARRAYS_INIT, 72, HALF_PSQT, 0, 384);
 
         // reusing other variables to reduce tokens: please do not summon these kinds of demons in real code
-        evalMG = 0;
-        for (; evalMG < 384; evalMG += 4)
+        for (evalMG = 0; evalMG < 384; evalMG += 4)
             for (evalEG = 0; evalEG < 4; evalEG++)
                 PSQT[2 * evalMG + evalEG] = PSQT[2 * evalMG + 7 - evalEG] = HALF_PSQT[evalMG + evalEG];
 
@@ -242,7 +241,7 @@ public class MyBot : IChessBot
 
         for (int i = 1; i < 128;)
         {
-            int eval = Search(i++, -200000, 200000, false);
+            Search(i++, -200000, 200000, false);
             // if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
             if (shouldStop || timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
                 break;
@@ -265,17 +264,17 @@ public class MyBot : IChessBot
 
             while (whiteBB != 0)
             {
-                sq = PopLSB(ref whiteBB);
-                evalMG += PSQT[it * 64 + (sq ^ 0b111000)] + MAT_PHASE[it];
-                evalEG += PSQT[384 + it * 64 + (sq ^ 0b111000)] + MAT_PHASE[6 + it];
+                sq = ClearAndGetIndexOfLSB(ref whiteBB);
+                evalMG += PSQT[psqtIdx = it * 64 + (sq ^ 0b111000)] + MAT_PHASE[it];
+                evalEG += PSQT[384 + psqtIdx] + MAT_PHASE[6 + it];
                 phase += MAT_PHASE[12 + it];
             }
 
             while (blackBB != 0)
             {
-                sq = PopLSB(ref blackBB);
-                evalMG -= PSQT[it * 64 + sq] + MAT_PHASE[it];
-                evalEG -= PSQT[384 + it * 64 + sq] + MAT_PHASE[6 + it];
+                sq = ClearAndGetIndexOfLSB(ref blackBB);
+                evalMG -= PSQT[psqtIdx = it * 64 + sq] + MAT_PHASE[it];
+                evalEG -= PSQT[384 + psqtIdx] + MAT_PHASE[6 + it];
                 phase += MAT_PHASE[12 + it];
             }
         }
@@ -316,7 +315,7 @@ public class MyBot : IChessBot
         ulong nonPawns = (board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
             board.GetPieceBitboard(PieceType.Pawn, board.IsWhiteToMove);
 
-        if (doNull && depth >= 3 && PopCount(nonPawns) >= 2 && board.TrySkipTurn())
+        if (doNull && depth >= 3 && GetNumberOfSetBits(nonPawns) >= 2 && board.TrySkipTurn())
         {
             int nullScore = -Search(depth - 3, -beta, -beta + 1, false);
             board.UndoSkipTurn();
@@ -347,7 +346,7 @@ public class MyBot : IChessBot
 
             if (score >= beta)
             {
-                if (move != killerMoves[ply, 0] && !move.IsCapture && !move.IsPromotion)
+                if (move != killerMoves[ply, 0] && !(move.IsCapture || move.IsPromotion))
                 {
                     killerMoves[ply, 1] = killerMoves[ply, 0];
                     killerMoves[ply, 0] = move;
