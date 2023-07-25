@@ -9,38 +9,10 @@ namespace ChessChallenge.Application
     {
         public static void DrawButtons(ChallengeController controller)
         {
-            Vector2 buttonPos = UIHelper.Scale(new Vector2(260, 210));
-            Vector2 buttonSize = UIHelper.Scale(new Vector2(260, 55));
+            Vector2 buttonPos = UIHelper.Scale(new Vector2(150, 210));
+            Vector2 buttonSize = UIHelper.Scale(new Vector2(230, 55));
             float spacing = buttonSize.Y * 1.2f;
             float breakSpacing = spacing * 0.6f;
-
-            // Game Buttons
-            if (NextButtonInRow("Human vs MyBot", ref buttonPos, spacing, buttonSize))
-            {
-                var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
-                var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
-                controller.StartNewGame(whiteType, blackType);
-            }
-            if (NextButtonInRow("MyBot vs MyBot", ref buttonPos, spacing, buttonSize))
-            {
-                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.MyBot);
-            }
-            if (NextButtonInRow("MyBot vs EvilBot", ref buttonPos, spacing, buttonSize))
-            {
-                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.EvilBot);
-            }
-            if (NextButtonInRow("MyBot vs MyBotOld", ref buttonPos, spacing, buttonSize))
-            {
-                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.MyBotOld);
-            }
-            if (NextButtonInRow("MyBot vs Stockfish", ref buttonPos, spacing, buttonSize))
-            {
-                controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.Stockfish);
-            }
-            if (NextButtonInRow("MyBot vs NegamaxBot", ref buttonPos, spacing, buttonSize))
-			{
-				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.NegamaxBot);
-			}
 
             // Page buttons
             buttonPos.Y += breakSpacing;
@@ -66,10 +38,10 @@ namespace ChessChallenge.Application
             if (NextButtonInRow("Submission Page", ref buttonPos, spacing, buttonSize))
             {
                 FileHelper.OpenUrl("https://forms.gle/6jjj8jxNQ5Ln53ie6");
-            }
+			}
 
-            // Window and quit buttons
-            buttonPos.Y += breakSpacing;
+			// Window and quit buttons
+			buttonPos.Y += breakSpacing;
 
             bool isBigWindow = Raylib.GetScreenWidth() > Settings.ScreenSizeSmall.X;
             string windowButtonName = isBigWindow ? "Smaller Window" : "Bigger Window";
@@ -82,7 +54,37 @@ namespace ChessChallenge.Application
                 Environment.Exit(0);
             }
 
-            bool NextButtonInRow(string name, ref Vector2 pos, float spacingY, Vector2 size)
+			buttonPos = UIHelper.Scale(new Vector2(400, 210));
+
+			// Game Buttons
+			if (NextButtonInRow("Human vs MyBot", ref buttonPos, spacing, buttonSize))
+			{
+				var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
+				var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
+				controller.StartNewGame(whiteType, blackType);
+			}
+			if (NextButtonInRow("MyBot vs MyBot", ref buttonPos, spacing, buttonSize))
+			{
+				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.MyBot);
+			}
+			if (NextButtonInRow("MyBot vs EvilBot", ref buttonPos, spacing, buttonSize))
+			{
+				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.EvilBot);
+			}
+			if (NextButtonInRow("MyBot vs MyBotOld", ref buttonPos, spacing, buttonSize))
+			{
+				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.MyBotOld);
+			}
+			if (NextButtonInRow("MyBot vs Stockfish", ref buttonPos, spacing, buttonSize))
+			{
+				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.Stockfish);
+			}
+			if (NextButtonInRow("MyBot vs Negamax", ref buttonPos, spacing, buttonSize))
+			{
+				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.NegamaxBot);
+			}
+
+			bool NextButtonInRow(string name, ref Vector2 pos, float spacingY, Vector2 size)
             {
                 bool pressed = UIHelper.Button(name, pos, size);
                 pos.Y += spacingY;
