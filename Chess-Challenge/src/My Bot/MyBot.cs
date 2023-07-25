@@ -347,7 +347,7 @@ public class MyBot : IChessBot
 
             if (score >= beta)
             {
-                if (move != killerMoves[ply, 0] && !move.IsCapture)
+                if (move != killerMoves[ply, 0] && !move.IsCapture && !move.IsPromotion)
                 {
                     killerMoves[ply, 1] = killerMoves[ply, 0];
                     killerMoves[ply, 0] = move;

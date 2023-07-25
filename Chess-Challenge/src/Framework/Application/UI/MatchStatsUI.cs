@@ -7,7 +7,7 @@ namespace ChessChallenge.Application
     public static class MatchStatsUI
     {
 		// from https://stackoverflow.com/questions/22834998/what-reference-should-i-use-to-use-erf-erfc-function
-		public static double Erf(double x)
+		private static double Erf(double x)
 		{
 			/*
 			Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
@@ -159,6 +159,52 @@ namespace ChessChallenge.Application
 				return r / x - 1.0;
 		}
 
+		private static double PhiInv(double p)
+		{
+			return Math.Sqrt(2) * invErf(2 * p - 1);
+		}
+
+		private static double invErf(double x)
+		{
+			double a = 8 * (Math.PI - 3) / (3 * Math.PI * (4 - Math.PI));
+			double y = Math.Log(1 - x * x);
+			double z = 2 / (Math.PI * a) + y / 2;
+
+			double ret = Math.Sqrt(Math.Sqrt(z * z - y / a) - z);
+			if (x < 0) return -ret;
+			return ret;
+		}
+
+		private static double eloDiff(double winPercentage)
+		{
+			return 400 * Math.Log10(winPercentage / (1.0 - winPercentage));
+		}
+
+		private static double errorMargin(int wins, int draws, int losses)
+		{
+			double total = wins + draws + losses;
+			double winP = wins / total;
+			double drawP = draws / total;
+			double lossP = losses / total;
+
+			double percentage = (wins + draws / 2) / total;
+			double winDev = winP * Math.Pow(1 - percentage, 2);
+			double drawsDev = drawP * Math.Pow(0.5 - percentage, 2);
+			double lossesDev = lossP * Math.Pow(0 - percentage, 2);
+
+			double stdDeviation = Math.Sqrt(winDev + drawsDev + lossesDev) / Math.Sqrt(total);
+
+			double confidenceP = 0.95;
+			double minConfidenceP = (1 - confidenceP) / 2;
+			double maxConfidenceP = 1 - minConfidenceP;
+			double devMin = percentage + PhiInv(minConfidenceP) * stdDeviation;
+			double devMax = percentage + PhiInv(maxConfidenceP) * stdDeviation;
+
+			double difference = eloDiff(devMax) - eloDiff(devMin);
+			double margin = difference / 2;
+			return margin;
+		}
+
 		public static void DrawMatchStats(ChallengeController controller)
         {
             if (controller.PlayerWhite.IsBot && controller.PlayerBlack.IsBot)
@@ -177,6 +223,9 @@ namespace ChessChallenge.Application
                 startPos.Y += spacingY * 2;
                 DrawStats(controller.BotStatsB);
 
+				startPos.Y += spacingY * 2;
+				DrawEloStats(controller.BotStatsA);
+
 
                 void DrawStats(ChallengeController.BotMatchStats stats)
                 {
@@ -187,15 +236,25 @@ namespace ChessChallenge.Application
                     double score = stats.NumWins + stats.NumDraws / 2.0;
                     int total = stats.NumWins + stats.NumDraws + stats.NumLosses;
                     double winRatio = score / total;
-                    double eloDiff = Math.Log10(winRatio / (1.0 - winRatio)) * 400.0;
-					double LOS = 0.5 + 0.5 * Erf((stats.NumWins - stats.NumLosses) / Math.Sqrt(2 * (stats.NumWins + stats.NumLosses)));
                     DrawNextText($"Score: {score}", regularFontSize, col);
-                    DrawNextText($"Win Ratio: {winRatio}", regularFontSize, col);
-                    DrawNextText($"Elo Diff: {eloDiff}", regularFontSize, col);
-					DrawNextText($"LOS: {LOS}", regularFontSize, col);
+                    DrawNextText($"Win Ratio: {Math.Round(winRatio * 1000) / 1000}", regularFontSize, col);
                     DrawNextText($"Num Timeouts: {stats.NumTimeouts}", regularFontSize, col);
                     DrawNextText($"Num Illegal Moves: {stats.NumIllegalMoves}", regularFontSize, col);
                 }
+
+				void DrawEloStats(ChallengeController.BotMatchStats stats)
+				{
+					double score = stats.NumWins + stats.NumDraws / 2.0;
+					int total = stats.NumWins + stats.NumDraws + stats.NumLosses;
+					double winRatio = score / total;
+
+					double elo = eloDiff(winRatio);
+					double eloError = errorMargin(stats.NumWins, stats.NumDraws, stats.NumLosses);
+					double LOS = 0.5 + 0.5 * Erf((stats.NumWins - stats.NumLosses) / Math.Sqrt(2 * (stats.NumWins + stats.NumLosses)));
+
+					DrawNextText($"Elo Diff: {Math.Round(elo * 10) / 10} +/- {Math.Round(eloError * 10) / 10}", regularFontSize, col);
+					DrawNextText($"LOS: {Math.Round(LOS * 1000) / 1000}", regularFontSize, col);
+				}
 
                 void DrawNextText(string text, int fontSize, Color col)
                 {
