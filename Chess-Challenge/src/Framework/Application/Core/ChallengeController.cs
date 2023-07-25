@@ -72,8 +72,10 @@ namespace ChessChallenge.Application
 
             BotStatsA = new BotMatchStats("IBot");
             BotStatsB = new BotMatchStats("IBot");
-            botMatchStartFens = FileHelper.ReadResourceFile("Fens.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
-            botTaskWaitHandle = new AutoResetEvent(false);
+			//botMatchStartFens = FileHelper.ReadResourceFile("Fens.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
+
+			botMatchStartFens = FileHelper.ReadResourceFile("2moves_v2.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
+			botTaskWaitHandle = new AutoResetEvent(false);
 
             StartNewGame(PlayerType.Human, PlayerType.MyBot);
         }

@@ -38,6 +38,9 @@
     <None Update="resources\Fens.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="resources\2moves_v2.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="resources\Fonts\OPENSANS-SEMIBOLD.TTF">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
