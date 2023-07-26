@@ -372,6 +372,9 @@ public class MyBot : IChessBot
         int eval = evaluate();
         if (eval >= beta)
             return beta;
+        // delta pruning
+        if (eval < alpha - 900)
+            return alpha;
         if (eval > alpha)
             alpha = eval;
 
