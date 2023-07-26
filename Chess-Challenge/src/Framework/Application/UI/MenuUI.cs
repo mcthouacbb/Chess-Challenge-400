@@ -83,7 +83,11 @@ namespace ChessChallenge.Application
 			{
 				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.NegamaxBot);
 			}
-            if (NextButtonInRow("My Bot vs AugsEUBot", ref buttonPos, spacing, buttonSize))
+			if (NextButtonInRow("My Bot vs Negamax2Bot", ref buttonPos, spacing, buttonSize))
+			{
+				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.Negamax2Bot);
+			}
+			if (NextButtonInRow("My Bot vs AugsEUBot", ref buttonPos, spacing, buttonSize))
 			{
 				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.AugsEUBot);
 			}
