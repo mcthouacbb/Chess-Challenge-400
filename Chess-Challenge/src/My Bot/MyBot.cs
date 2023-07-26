@@ -44,7 +44,7 @@ public class MyBot : IChessBot
     // 0-5 = middlegame material, 6-11 = endgame material, 12-17 = phase weights
     short[] MAT_PHASE = new short[18];
 
-    sbyte[] HALF_PSQT = new sbyte[384], MVV_LVA = new sbyte[36];
+    sbyte[] HALF_PSQT = new sbyte[384];
 
 
     // pack static arrays into 64 bit unsigned integers, and then use Buffer.BlockCopy to extract them
@@ -54,15 +54,11 @@ public class MyBot : IChessBot
     // Additionally, the code for tuning the parameters is in the tune branch under Sirius/src/tune
     ulong[] ARRAYS_INIT =
     {
-        // MVV_LVA
-        1733323143564695823, 3107790562467916834, 14683016086159413, 1443966850258900235,
-        // first 4 bytes is MVV_LVA, last 4 bytes is MAT_PHASE
-        74591169479321630,
-        // MAT_PHASE 2-17
-        3410228281635,
-        115687181809090661,
-        1688849860264685,
-        176094838800,
+        104146991235792966,
+        57421329040671514,
+        3216957440225,
+        5066618300661760,
+        41,
         // PSQT
         5565390404019549171,
         575335840744079079,
@@ -149,25 +145,14 @@ public class MyBot : IChessBot
         for (int i = 0; i < moves.Length; i++)
             moveScores[i] =
                 moves[i] == ttMoves[ttIndex] ? -1000000 :
-                moves[i].IsCapture ? -MVV_LVA[
-                    6 * (int)moves[i].MovePieceType + (int)moves[i].CapturePieceType - 7
-                ] :
+                // order by MVP MVV LVA
+                // (1) most valuable promotion
+                // (2) most valuable victim(captured piece)
+                // (3) least valuable attacker(moving piece)
+                moves[i].IsCapture || moves[i].IsPromotion ?
+                    (int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
                 moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1] ? 100 :
                 1000000;
-        /*{
-            int score = 1000000;
-            if (moves[i] == ttMoves[ttIndex])
-                score = -1000000;
-            else if (moves[i].IsCapture)
-                score = -MVV_LVA[
-                    6 * (int)moves[i].MovePieceType + (int)moves[i].CapturePieceType - 7
-                ];
-            else if (moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1])
-                score = 100;
-
-            // negate score to invert comparison and sort in descending order without using expensive comparator(token-wise)
-            moveScores[i] = score;
-        }*/
 
         MemoryExtensions.Sort(moveScores.AsSpan(0, moves.Length), moves);
     }
@@ -175,9 +160,8 @@ public class MyBot : IChessBot
     public MyBot()
     {
         // using a constructor is probably a hacky way to initialize the tables, but I can't think of any other way
-        Buffer.BlockCopy(ARRAYS_INIT, 0, MVV_LVA, 0, 36);
-        Buffer.BlockCopy(ARRAYS_INIT, 36, MAT_PHASE, 0, 36);
-        Buffer.BlockCopy(ARRAYS_INIT, 72, HALF_PSQT, 0, 384);
+        Buffer.BlockCopy(ARRAYS_INIT, 0, MAT_PHASE, 0, 36);
+        Buffer.BlockCopy(ARRAYS_INIT, 40, HALF_PSQT, 0, 384);
 
         // reusing other variables to reduce tokens: please do not summon these kinds of demons in real code
         for (evalMG = 0; evalMG < 384; evalMG += 4)
@@ -185,17 +169,7 @@ public class MyBot : IChessBot
                 PSQT[2 * evalMG + evalEG] = PSQT[2 * evalMG + 7 - evalEG] = HALF_PSQT[evalMG + evalEG];
 
         // uncomment to print out eval parameters
-        /*for (int i = 0; i < 6; i++)
-        {
-            Console.Write("{");
-            for (int j = 0; j < 6; j++)
-            {
-                Console.Write($"{MVV_LVA[6 * i + j]}, ");
-            }
-            Console.WriteLine("}");
-        }
-
-        for (int i = 0; i < 3; i++)
+        /*for (int i = 0; i < 3; i++)
         {
             Console.Write("{");
             for (int j = 0; j < 6; j++)
@@ -241,8 +215,8 @@ public class MyBot : IChessBot
         {
             Search(i++, -200000, 200000, false);
             // if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
-            if (shouldStop || timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
-                break;
+            //if (shouldStop || timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
+                //break;
             //Console.WriteLine(nodes);
             //Console.ForegroundColor = ConsoleColor.Green;
             //Console.WriteLine($"Mine Depth: {i - 1}, Move: {bestMove} eval: {eval}");
