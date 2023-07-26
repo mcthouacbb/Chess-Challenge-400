@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using ChessChallenge.API;
+using ChessChallenge.Application;
 
 /*
  * level 0 elo ~1346.82
@@ -69,7 +70,7 @@ public class Stockfish : IChessBot
 			throw new Exception("Failed to communicate with stockfish");
 		}
 
-		Ins().WriteLine($"setoption name Skill Level value {skillLevel}");
+		//Ins().WriteLine($"setoption name Skill Level value {skillLevel}");
 	}
 
 	public Move Think(Board board, Timer timer)
@@ -77,7 +78,8 @@ public class Stockfish : IChessBot
 		Ins().WriteLine("ucinewgame");
 		Ins().WriteLine($"position fen {board.GetFenString()}");
 		var timeString = board.IsWhiteToMove ? "wtime" : "btime";
-		Ins().WriteLine($"go {timeString} {timer.MillisecondsRemaining}");
+		var oppTimeString = board.IsWhiteToMove ? "btime" : "wtime";
+		Ins().WriteLine($"go {timeString} {timer.MillisecondsRemaining} {oppTimeString} {Settings.GameDurationMilliseconds} winc 0 binc 0");
 
 		string? line;
 		Move? move = null;
