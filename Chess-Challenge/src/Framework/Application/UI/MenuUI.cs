@@ -83,6 +83,14 @@ namespace ChessChallenge.Application
 			{
 				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.NegamaxBot);
 			}
+            if (NextButtonInRow("My Bot vs AugsEUBot", ref buttonPos, spacing, buttonSize))
+			{
+				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.AugsEUBot);
+			}
+			if (NextButtonInRow("My Bot vs CmndrBot", ref buttonPos, spacing, buttonSize))
+			{
+				controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.CmndrBot);
+			}
 
 			bool NextButtonInRow(string name, ref Vector2 pos, float spacingY, Vector2 size)
             {

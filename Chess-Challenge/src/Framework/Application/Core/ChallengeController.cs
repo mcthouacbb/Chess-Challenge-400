@@ -22,7 +22,9 @@ namespace ChessChallenge.Application
             EvilBot,
             MyBotOld,
             NegamaxBot,
-            Stockfish
+            Stockfish,
+            AugsEUBot,
+            CmndrBot
         }
 
         // Game state
@@ -74,7 +76,7 @@ namespace ChessChallenge.Application
             BotStatsB = new BotMatchStats("IBot");
 			//botMatchStartFens = FileHelper.ReadResourceFile("Fens.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
 
-			botMatchStartFens = FileHelper.ReadResourceFile("2moves_v2.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
+			botMatchStartFens = FileHelper.ReadResourceFile("Fens.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
 			botTaskWaitHandle = new AutoResetEvent(false);
 
             StartNewGame(PlayerType.Human, PlayerType.MyBot);
@@ -217,6 +219,8 @@ namespace ChessChallenge.Application
                 PlayerType.MyBotOld => new ChessPlayer(new MyBotOld(), type, GameDurationMilliseconds),
                 PlayerType.NegamaxBot => new ChessPlayer(new NegamaxBasic(), type, GameDurationMilliseconds),
                 PlayerType.Stockfish => new ChessPlayer(new Stockfish(20), type, GameDurationMilliseconds),
+                PlayerType.AugsEUBot => new ChessPlayer(new AugsEUBot(), type, GameDurationMilliseconds),
+                PlayerType.CmndrBot => new ChessPlayer(new CmndrBot(), type, GameDurationMilliseconds),
                 _ => new ChessPlayer(new HumanPlayer(boardUI), type)
             };
         }
