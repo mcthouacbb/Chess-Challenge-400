@@ -124,37 +124,20 @@ public class MyBot : IChessBot
     //     square
     // index calculation
     //     firstIndex * 384 + secondIndex * 64 + thirdIndex
-    int[] PSQT = new int[768], moveScores = new int[256];
+    int[] PSQT = new int[768];
 
     Move[,] killerMoves = new Move[128, 2];
+    int[,] history = new int[2, 4096];
 
     // because of token shortages, only TT moves are stored
-    Move[] ttMoves = new Move[33554432];
+    ushort[] ttMoves = new ushort[67108864];
 
     ulong ttIndex
     {
         get
         {
-            return board.ZobristKey % 33554432;
+            return board.ZobristKey % 67108864;
         }
-    }
-
-    // sorts moves with TT moves, MVV_LVA for captures, and killer moves
-    void sortMoves(Span<Move> moves)
-    {
-        for (int i = 0; i < moves.Length; i++)
-            moveScores[i] =
-                moves[i] == ttMoves[ttIndex] ? -1000000 :
-                // order by MVP MVV LVA
-                // (1) most valuable promotion
-                // (2) most valuable victim(captured piece)
-                // (3) least valuable attacker(moving piece)
-                moves[i].IsCapture || moves[i].IsPromotion ?
-                    (int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
-                moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1] ? 100 :
-                1000000;
-
-        MemoryExtensions.Sort(moveScores.AsSpan(0, moves.Length), moves);
     }
 
     public MyBot()
@@ -231,7 +214,7 @@ public class MyBot : IChessBot
         // incremented on line 267
         for (; it < 6; it++)
         {
-            foreach (bool stm in new bool[] {true, false})
+            foreach (bool stm in new bool[] { true, false })
             {
                 ulong pieceBB = board.GetPieceBitboard((PieceType)(it + 1), stm);
                 int sign = stm ? 1 : -1;
@@ -308,7 +291,21 @@ public class MyBot : IChessBot
         if (moves.Length == 0 && !isQSearch)
             return board.IsInCheck() ? ply - 32000 : 0;
 
-        sortMoves(moves);
+        // move ordering with TT, MVV_LVA, and killer moves
+        Span<int> moveScores = stackalloc int[moves.Length];
+        for (int i = 0; i < moves.Length; i++)
+            moveScores[i] =
+                moves[i].RawValue == ttMoves[ttIndex] ? -1000000 :
+                // order by MVP MVV LVA
+                // (1) most valuable promotion
+                // (2) most valuable victim(captured piece)
+                // (3) least valuable attacker(moving piece)
+                moves[i].IsCapture || moves[i].IsPromotion ?
+                    (int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
+                moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1] ? 100 :
+                1000000;
+
+        MemoryExtensions.Sort(moveScores, moves);
 
 
         Move best = Move.NullMove;
@@ -332,7 +329,7 @@ public class MyBot : IChessBot
                         killerMoves[ply, 1] = killerMoves[ply, 0];
                         killerMoves[ply, 0] = move;
                     }
-                    ttMoves[ttIndex] = move;
+                    ttMoves[ttIndex] = move.RawValue;
                 }
                 return beta;
             }
@@ -347,7 +344,7 @@ public class MyBot : IChessBot
         }
 
         if (!isQSearch)
-            ttMoves[ttIndex] = best;
+            ttMoves[ttIndex] = best.RawValue;
 
         return alpha;
     }
