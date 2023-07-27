@@ -227,6 +227,19 @@ namespace ChessChallenge.Application
             };
         }
 
+        public static ChessChallenge.API.IChessBot? CreateBot(PlayerType type)
+        {
+            return type switch
+            {
+                PlayerType.MyBot => new MyBot(),
+                PlayerType.EvilBot => new EvilBot(),
+                PlayerType.MyBotOld => new MyBotOld(),
+                PlayerType.NegamaxBot => new NegamaxBasic(),
+                PlayerType.Negamax2Bot => new Negamax2Bot(),
+                _ => null
+            };
+        }
+
         static int GetTokenCount()
         {
             string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "MyBot.cs");
