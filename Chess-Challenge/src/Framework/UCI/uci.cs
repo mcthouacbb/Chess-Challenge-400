@@ -4,7 +4,7 @@ using ChessChallenge.Application.APIHelpers;
 using ChessChallenge.Chess;
 using System;
 
-/* UCI COMMAND: cutechess -engine name="MyBot" cmd="Chess-Challenge.exe uci MyBot" -engine name="MyBotOld" cmd="Chess-Challenge.exe uci MyBotOld" -each proto=uci tc=10+0.1 -concurrency 4 -maxmoves 200 -games 2 -rounds 500 -ratinginterval 20 -openings file="C:\Dev\c++\Sirius\Sirius\res\2moves_v2.pgn" format=pgn order=random -pgnout "C:\Users\Aidanmicro.com\AppData\Local\ChessCodingChallenge\Games\MyBot-vs-MyBotOld-cc-1.pgn" -srand %RANDOM%
+/* UCI COMMAND: cutechess -engine name="MyBot" cmd="Chess-Challenge.exe uci MyBot" -engine name="MyBotOld" cmd="Chess-Challenge.exe uci MyBotOld" -each proto=uci tc=10+0.1 -concurrency 4 -maxmoves 200 -games 2 -rounds 500 -ratinginterval 20 -openings file="C:\Dev\c++\Sirius\Sirius\res\2moves_v2.pgn" format=pgn order=random -pgnout error"C:\Users\Aidanmicro.com\AppData\Local\ChessCodingChallenge\Games\MyBot-vs-MyBotOld-cc-1.pgn" -srand %RANDOM%
  * ignore this if you're not me lol
  */
 
