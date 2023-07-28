@@ -124,18 +124,18 @@ public class MyBotOld : IChessBot
     //     square
     // index calculation
     //     firstIndex * 384 + secondIndex * 64 + thirdIndex
-    int[] PSQT = new int[768], moveScores = new int[256];
+    int[] PSQT = new int[768], history = new int[8192];
 
     Move[,] killerMoves = new Move[128, 2];
 
     // because of token shortages, only TT moves are stored
-    Move[] ttMoves = new Move[33554432];
+    ushort[] ttMoves = new ushort[67108864];
 
     ulong ttIndex
     {
         get
         {
-            return board.ZobristKey % 33554432;
+            return board.ZobristKey % 67108864;
         }
     }
 
@@ -192,6 +192,9 @@ public class MyBotOld : IChessBot
 
         this.board = board;
         this.timer = timer;
+
+        // this is important
+        Array.Clear(history);
 
         for (int i = 1; i < 128;)
         {
@@ -291,9 +294,10 @@ public class MyBotOld : IChessBot
             return board.IsInCheck() ? ply - 32000 : 0;
 
         // move ordering with TT, MVV_LVA, and killer moves
+        Span<int> moveScores = stackalloc int[moves.Length];
         for (int i = 0; i < moves.Length; i++)
             moveScores[i] =
-                moves[i] == ttMoves[ttIndex] ? -1000000 :
+                moves[i].RawValue == ttMoves[ttIndex] ? -1000000 :
                 // order by MVP MVV LVA
                 // (1) most valuable promotion
                 // (2) most valuable victim(captured piece)
@@ -301,10 +305,9 @@ public class MyBotOld : IChessBot
                 moves[i].IsCapture || moves[i].IsPromotion ?
                     (int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
                 moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1] ? 100 :
-                1000000;
+                2000000000 - history[moves[i].RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
 
-        MemoryExtensions.Sort(moveScores.AsSpan(0, moves.Length), moves);
-
+        MemoryExtensions.Sort(moveScores, moves);
 
         Move best = Move.NullMove;
         foreach (Move move in moves)
@@ -322,12 +325,16 @@ public class MyBotOld : IChessBot
             {
                 if (!isQSearch)
                 {
-                    if (move != killerMoves[ply, 0] && !(move.IsCapture || move.IsPromotion))
+                    if (!move.IsCapture && !move.IsPromotion)
                     {
-                        killerMoves[ply, 1] = killerMoves[ply, 0];
-                        killerMoves[ply, 0] = move;
+                        if (move != killerMoves[ply, 0])
+                        {
+                            killerMoves[ply, 1] = killerMoves[ply, 0];
+                            killerMoves[ply, 0] = move;
+                        }
+                        history[move.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
                     }
-                    ttMoves[ttIndex] = move;
+                    ttMoves[ttIndex] = move.RawValue;
                 }
                 return beta;
             }
@@ -342,7 +349,7 @@ public class MyBotOld : IChessBot
         }
 
         if (!isQSearch)
-            ttMoves[ttIndex] = best;
+            ttMoves[ttIndex] = best.RawValue;
 
         return alpha;
     }

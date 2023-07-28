@@ -124,10 +124,9 @@ public class MyBot : IChessBot
     //     square
     // index calculation
     //     firstIndex * 384 + secondIndex * 64 + thirdIndex
-    int[] PSQT = new int[768];
+    int[] PSQT = new int[768], history = new int[8192];
 
     Move[,] killerMoves = new Move[128, 2];
-    int[,] history = new int[2, 4096];
 
     // because of token shortages, only TT moves are stored
     ushort[] ttMoves = new ushort[67108864];
@@ -194,12 +193,15 @@ public class MyBot : IChessBot
         this.board = board;
         this.timer = timer;
 
+        // this is important
+        Array.Clear(history);
+
         for (int i = 1; i < 128;)
         {
             Search(i++, -200000, 200000, false);
             // if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
             //if (shouldStop || timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
-                //break;
+            //break;
             //Console.WriteLine(nodes);
             //Console.ForegroundColor = ConsoleColor.Green;
             //Console.WriteLine($"Mine Depth: {i - 1}, Move: {bestMove} eval: {eval}");
@@ -243,9 +245,9 @@ public class MyBot : IChessBot
             return alpha;
         }
 
+        int eval = evaluate();
         if (isQSearch)
         {
-            int eval = evaluate();
             if (eval >= beta)
                 return beta;
             // delta pruning
@@ -265,6 +267,9 @@ public class MyBot : IChessBot
 
             if (board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
                 return 0;
+
+            if (depth <= 6 && eval - depth * 70 >= beta)
+                return beta;
 
             // null move pruning
             /*
@@ -303,10 +308,9 @@ public class MyBot : IChessBot
                 moves[i].IsCapture || moves[i].IsPromotion ?
                     (int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
                 moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1] ? 100 :
-                1000000;
+                2000000000 - history[moves[i].RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
 
         MemoryExtensions.Sort(moveScores, moves);
-
 
         Move best = Move.NullMove;
         foreach (Move move in moves)
@@ -324,10 +328,14 @@ public class MyBot : IChessBot
             {
                 if (!isQSearch)
                 {
-                    if (move != killerMoves[ply, 0] && !(move.IsCapture || move.IsPromotion))
+                    if (!move.IsCapture && !move.IsPromotion)
                     {
-                        killerMoves[ply, 1] = killerMoves[ply, 0];
-                        killerMoves[ply, 0] = move;
+                        if (move != killerMoves[ply, 0])
+                        {
+                            killerMoves[ply, 1] = killerMoves[ply, 0];
+                            killerMoves[ply, 0] = move;
+                        }
+                        history[move.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
                     }
                     ttMoves[ttIndex] = move.RawValue;
                 }
