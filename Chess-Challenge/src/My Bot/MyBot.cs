@@ -258,13 +258,6 @@ public class MyBot : IChessBot
         }
         else
         {
-            // if we already found a faster mate, no need to search deeper
-            alpha = Math.Max(alpha, ply - 32000);
-            beta = Math.Min(beta, 32000 - ply);
-            // max ply is 127
-            if (alpha >= beta || ply >= 127)
-                return alpha;
-
             if (board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
                 return 0;
 
