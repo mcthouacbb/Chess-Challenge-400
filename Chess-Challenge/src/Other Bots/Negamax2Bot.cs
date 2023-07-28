@@ -155,10 +155,10 @@ public class Negamax2Bot : IChessBot
 		// https://www.chessprogramming.org/Iterative_Deepening
 		for (int depth = 1; depth <= 50; depth++)
 		{
-			int score = Search(board, timer, -30000, 30000, depth, 0);
+			Search(board, timer, -30000, 30000, depth, 0);
 
-			Console.ForegroundColor = ConsoleColor.Magenta;
-			Console.WriteLine($"Negamax2 Depth: {depth} Move: {bestmoveRoot} Eval: {score}");
+			//Console.ForegroundColor = ConsoleColor.Magenta;
+			//Console.WriteLine($"Negamax2 Depth: {depth} Move: {bestmoveRoot} Eval: {score}");
 			// Out of time
 			if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 30)
 				break;
