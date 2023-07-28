@@ -245,9 +245,9 @@ public class MyBotOld : IChessBot
             return alpha;
         }
 
+        int eval = evaluate();
         if (isQSearch)
         {
-            int eval = evaluate();
             if (eval >= beta)
                 return beta;
             // delta pruning
@@ -258,15 +258,11 @@ public class MyBotOld : IChessBot
         }
         else
         {
-            // if we already found a faster mate, no need to search deeper
-            alpha = Math.Max(alpha, ply - 32000);
-            beta = Math.Min(beta, 32000 - ply);
-            // max ply is 127
-            if (alpha >= beta || ply >= 127)
-                return alpha;
-
             if (board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
                 return 0;
+
+            if (depth <= 6 && eval - depth * 70 >= beta)
+                return beta;
 
             // null move pruning
             /*
