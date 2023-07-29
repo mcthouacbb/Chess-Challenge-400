@@ -195,10 +195,19 @@ public class MyBot : IChessBot
 
         // this is important
         Array.Clear(history);
-
+        /*for (int i = 1; i < 128; i++)
+        {
+            for (;;)
+            {
+                search(i, alpha, beta, false);
+                if (eval <= alpha)
+                    beta = (alpha + beta) / 2;
+                    alpha = alpha - (delta *= 2);
+            }
+        }*/
         for (int i = 1; i < 128;)
         {
-            Search(i++, -200000, 200000, false);
+            Search(i++, -200000, 200000, false, true);
             // if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
             //if (shouldStop || timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
             //break;
@@ -236,7 +245,7 @@ public class MyBot : IChessBot
         return (evalMG * phase + evalEG * (242 - phase)) / (board.IsWhiteToMove ? 242 : -242);
     }
 
-    int Search(int depth, int alpha, int beta, bool doNull)
+    int Search(int depth, int alpha, int beta, bool doNull, bool isPV)
     {
         bool isQSearch = depth <= 0;
         if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
@@ -261,7 +270,7 @@ public class MyBot : IChessBot
             if (board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
                 return 0;
 
-            if (depth <= 6 && eval - depth * 70 >= beta)
+            if (!isPV && !board.IsInCheck() && depth <= 6 && eval - depth * 75 >= beta)
                 return beta;
 
             // null move pruning
@@ -273,10 +282,10 @@ public class MyBot : IChessBot
              *     - Depth is less than reduction factor
              *     - Only pawns left for side to move, zugzwang becomes extremely common
              */
-            if (doNull && depth >= 3 && GetNumberOfSetBits((board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
+            if (!isPV && doNull && depth >= 3 && GetNumberOfSetBits((board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
                 board.GetPieceBitboard(PieceType.Pawn, board.IsWhiteToMove)) >= 2 && board.TrySkipTurn())
             {
-                int nullScore = -Search(depth - 3, -beta, -beta + 1, false);
+                int nullScore = -Search(depth - 2 - depth / 3, -beta, -beta + 1, false, false);
                 board.UndoSkipTurn();
                 if (nullScore >= beta)
                     return beta;
@@ -306,12 +315,22 @@ public class MyBot : IChessBot
         MemoryExtensions.Sort(moveScores, moves);
 
         Move best = Move.NullMove;
-        foreach (Move move in moves)
+        for (int i = 0; i < moves.Length; i++)
         {
+            Move move = moves[i];
             board.MakeMove(move);
             ply++;
             // check extension, don't decrement depth if in check after make move
-            int score = -Search(depth - (board.IsInCheck() ? 0 : 1), -beta, -alpha, true);
+            int score;
+            int nDepth = depth - (board.IsInCheck() ? 0 : 1);
+            if (i == 0 || isQSearch)
+                score = -Search(nDepth, -beta, -alpha, true, true);
+            else
+            {
+                score = -Search(nDepth, -alpha - 1, -alpha, true, false);
+                if (score > alpha && isPV)
+                    score = -Search(nDepth, -beta, -alpha, true, true);
+            }
             ply--;
             board.UndoMove(move);
             if (shouldStop)
