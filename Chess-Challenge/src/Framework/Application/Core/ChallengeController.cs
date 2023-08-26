@@ -19,6 +19,8 @@ namespace ChessChallenge.Application
         {
             Human,
             MyBot,
+            P2kBot,
+            P2kBotOld,
             EvilBot,
             MyBotOld,
             NegamaxBot,
@@ -75,9 +77,9 @@ namespace ChessChallenge.Application
 
             BotStatsA = new BotMatchStats("IBot");
             BotStatsB = new BotMatchStats("IBot");
-			//botMatchStartFens = FileHelper.ReadResourceFile("Fens.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
+			botMatchStartFens = FileHelper.ReadResourceFile("Fens.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
 
-			botMatchStartFens = FileHelper.ReadResourceFile("2moves_v2.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
+			//botMatchStartFens = FileHelper.ReadResourceFile("2moves_v2.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
 			botTaskWaitHandle = new AutoResetEvent(false);
 
             StartNewGame(PlayerType.Human, PlayerType.MyBot);
@@ -216,7 +218,9 @@ namespace ChessChallenge.Application
             return type switch
             {
                 PlayerType.MyBot => new ChessPlayer(new MyBot(), type, GameDurationMilliseconds),
-                PlayerType.EvilBot => new ChessPlayer(new EvilBot(), type, GameDurationMilliseconds),
+                PlayerType.P2kBot => new ChessPlayer(new P2kBot(), type, GameDurationMilliseconds),
+				PlayerType.P2kBotOld => new ChessPlayer(new P2kBotOld(), type, GameDurationMilliseconds),
+				PlayerType.EvilBot => new ChessPlayer(new EvilBot(), type, GameDurationMilliseconds),
                 PlayerType.MyBotOld => new ChessPlayer(new MyBotOld(), type, GameDurationMilliseconds),
                 PlayerType.NegamaxBot => new ChessPlayer(new NegamaxBasic(), type, GameDurationMilliseconds),
                 PlayerType.Negamax2Bot => new ChessPlayer(new Negamax2Bot(), type, GameDurationMilliseconds),
@@ -232,8 +236,10 @@ namespace ChessChallenge.Application
             return type switch
             {
                 PlayerType.MyBot => new MyBot(),
+                PlayerType.P2kBot => new P2kBot(),
                 PlayerType.EvilBot => new EvilBot(),
                 PlayerType.MyBotOld => new MyBotOld(),
+                PlayerType.P2kBotOld => new P2kBotOld(),
                 PlayerType.NegamaxBot => new NegamaxBasic(),
                 PlayerType.Negamax2Bot => new Negamax2Bot(),
                 _ => null
@@ -242,7 +248,8 @@ namespace ChessChallenge.Application
 
         static int GetTokenCount()
         {
-            string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "MyBot.cs");
+            //string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "MyBot.cs");
+            string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "p2kBot.cs");
 
             using StreamReader reader = new(path);
             string txt = reader.ReadToEnd();

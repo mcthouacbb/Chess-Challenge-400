@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Chess-Challenge": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+    }
+  }
+}

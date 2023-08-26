@@ -4,7 +4,7 @@ using ChessChallenge.Application.APIHelpers;
 using ChessChallenge.Chess;
 using System;
 
-/* UCI COMMAND: cutechess -engine name="MyBot" cmd="Chess-Challenge.exe uci MyBot" -engine name="MyBotOld" cmd="Chess-Challenge.exe uci MyBotOld" -each proto=uci tc=10+0.1 -concurrency 4 -maxmoves 200 -games 2 -rounds 500 -ratinginterval 20 -openings file="C:\Dev\c++\Sirius\Sirius\res\2moves_v2.pgn" format=pgn order=random -pgnout error"C:\Users\Aidanmicro.com\AppData\Local\ChessCodingChallenge\Games\MyBot-vs-MyBotOld-cc-1.pgn" -srand %RANDOM%
+/* UCI COMMAND: cutechess-cli -engine name="P2kBot" cmd="Chess-Challenge.exe" arg="uci" arg="P2kBot" -engine name="P2kBotOld" cmd="Chess-Challenge.exe" arg="uci" arg="P2kBotOld" -each proto=uci tc=60+0 -concurrency 4 -maxmoves 200 -games 2 -rounds 2500 -ratinginterval 20 -openings file="C:\dist\Sirius\v4.0\res\Pohl.epd" format=epd order=random -pgnout "C:\Users\Aidanmicro.com\AppData\Local\ChessCodingChallenge\Games\P2kBot-vs-P2kBotOld-cc-1.pgn" -srand %RANDOM% -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05 -recover
  * ignore this if you're not me lol
  */
 
@@ -16,8 +16,6 @@ namespace ChessChallenge.UCI
         ChallengeController.PlayerType type;
         Chess.Board board;
         APIMoveGen moveGen;
-
-        static readonly string defaultFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 		public UCIBot(IChessBot bot, ChallengeController.PlayerType type)
         {
@@ -38,7 +36,7 @@ namespace ChessChallenge.UCI
                 }
                 else
                 {
-                    board.LoadPosition(String.Join(" ", args.AsSpan(1, args.Length - 1).ToArray()));
+                    board.LoadPosition(String.Join(" ", args.AsSpan(2, args.Length - 2).ToArray()));
                 }
             }
             else
@@ -49,7 +47,7 @@ namespace ChessChallenge.UCI
 				}
                 else
 				{
-					board.LoadPosition(String.Join(" ", args.AsSpan(1, idx - 1).ToArray()));
+					board.LoadPosition(String.Join(" ", args.AsSpan(2, idx - 2).ToArray()));
 				}
 
                 for (int i = idx + 1; i < args.Length; i++)
