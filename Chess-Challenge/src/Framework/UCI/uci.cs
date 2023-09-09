@@ -59,15 +59,12 @@ namespace ChessChallenge.UCI
             }
 
             string fen = FenUtility.CurrentFen(board);
-            Console.WriteLine(fen);
         }
 
         void GoCommand(string[] args)
         {
             int wtime = 0, btime = 0;
             API.Board apiBoard = new API.Board(board);
-            Console.WriteLine(FenUtility.CurrentFen(board));
-            Console.WriteLine(apiBoard.GetFenString());
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i] == "wtime")
