@@ -27,7 +27,9 @@ namespace ChessChallenge.Application
             Negamax2Bot,
             Stockfish,
             AugsEUBot,
-            CmndrBot
+            CmndrBot,
+            T2WithQ,
+            T2WithoutQ
         }
 
         // Game state
@@ -242,14 +244,16 @@ namespace ChessChallenge.Application
                 PlayerType.P2kBotOld => new P2kBotOld(),
                 PlayerType.NegamaxBot => new NegamaxBasic(),
                 PlayerType.Negamax2Bot => new Negamax2Bot(),
+                PlayerType.T2WithQ => new T2YesQ(),
+                PlayerType.T2WithoutQ => new T2NoQ(),
                 _ => null
             };
         }
 
         static int GetTokenCount()
         {
-            //string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "MyBot.cs");
-            string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "p2kBot.cs");
+            string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "MyBot.cs");
+            //string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "p2kBot.cs");
 
             using StreamReader reader = new(path);
             string txt = reader.ReadToEnd();
