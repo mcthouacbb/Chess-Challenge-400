@@ -314,7 +314,7 @@ public class MyBot : IChessBot
 {
 	private Move bestMoveRoot;
 
-	private int ply, millisAlloced, nodes, phase, evalMG, evalEG, sq, it, psqtIdx;
+	private int millisAlloced, nodes, phase, evalMG, evalEG, sq, it, psqtIdx;
 	private bool shouldStop;
 	//int nodes = 0;
 
@@ -474,7 +474,6 @@ public class MyBot : IChessBot
 		// use 2.5% of remaining time(decent strategy that doesn't take up many tokens)
 		millisAlloced = timer.MillisecondsRemaining / 40;
 		shouldStop = false;
-		ply = nodes = 0;
 
 		// this is important
 		Array.Clear(history);
@@ -490,7 +489,7 @@ public class MyBot : IChessBot
         }*/
 		for (int i = 1; i < 128;)
 		{
-			Search(i++, -200000, 200000, false);
+			Search(i++, -200000, 200000, false, 0);
 			// if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
 			//if (shouldStop || timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
 			//break;
@@ -505,36 +504,11 @@ public class MyBot : IChessBot
 
 		// use local access board and timer with no token overhead
 		// idea from antares
-		int evaluate()
-		{
-			phase = evalMG = evalEG = it = 0;
 
-			// incremented on line 267
-			for (; it < 6; it++)
-			{
-				foreach (bool stm in new bool[] { true, false })
-				{
-					ulong pieceBB = board.GetPieceBitboard((PieceType)(it + 1), stm);
-					int sign = stm ? 1 : -1;
-					//blackBB = board.GetPieceBitboard((PieceType)(it + 1), false);
-
-					while (pieceBB != 0)
-					{
-						sq = ClearAndGetIndexOfLSB(ref pieceBB) ^ (stm ? 0b111000 : 0);
-						evalMG += sign * (PSQT[psqtIdx = it * 64 + sq] + (int)(799681242290199 >> it * 10 & 1023));
-						evalEG += sign * (PSQT[384 + psqtIdx] + (int)(700778869297214 >> it * 10 & 1023));
-						phase += 17480 >> 3 * it & 7;
-					}
-				}
-			}
-			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
-			return (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
-		}
-
-		int Search(int depth, int alpha, int beta, bool doNull)
+		int Search(int depth, int alpha, int beta, bool doNull, int ply)
 		{
 			// local search function to save tokens, idea from Tyrant
-			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => -Search(depth - R, localAlpha, -alpha, localDoNull);
+			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => -Search(depth - R, localAlpha, -alpha, localDoNull, ply + 1);
 
 			if (board.IsInCheck())
 				depth++;
@@ -548,7 +522,7 @@ public class MyBot : IChessBot
 			}
 
 
-			if (board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
+			if (board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
 				return 0;
 
 			ref var ttEntry = ref ttEntries[board.ZobristKey % 8388608];
@@ -560,38 +534,60 @@ public class MyBot : IChessBot
 				return ttEntry.Item2;
 
 
-			int eval = evaluate();
+			phase = evalMG = evalEG = it = 0;
+
+			// incremented on line 267
+			for (; it < 6; it++)
+			{
+				for (int stm = 2; --stm >= 0;)
+				{
+					ulong pieceBB = board.GetPieceBitboard((PieceType)(it + 1), stm == 1);
+					//blackBB = board.GetPieceBitboard((PieceType)(it + 1), false);
+
+					while (pieceBB != 0)
+					{
+						sq = ClearAndGetIndexOfLSB(ref pieceBB) ^ stm * 0b111000;
+						evalMG += PSQT[psqtIdx = it * 64 + sq] + (int)(799681242290199 >> it * 10 & 1023);
+						evalEG += PSQT[384 + psqtIdx] + (int)(700778869297214 >> it * 10 & 1023);
+						phase += 17480 >> 3 * it & 7;
+					}
+					evalMG *= -1;
+					evalEG *= -1;
+				}
+			}
+			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
+			int staticEval = (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
+
 			if (isQSearch)
 			{
-				if (eval >= beta)
-					return beta;
-				// delta pruning
-				if (eval < alpha - 900)
-					return alpha;
-				if (eval > alpha)
-					alpha = eval;
+				if (staticEval >= beta)
+					return staticEval;
+				if (staticEval > alpha)
+					alpha = staticEval;
 			}
-			else
+			else if (notPV && !board.IsInCheck())
 			{
-				if (notPV && !board.IsInCheck() && depth <= 6 && eval - depth * 70 >= beta)
-					return beta;
+				if (depth <= 6 && staticEval - depth * 70 >= beta)
+					return staticEval;
 
 				// null move pruning
-				/*
-				 * Make a "null move" and see if we can get a fail high
-				 * Disabled if:
-				 *     - In Check, position after null move will be illegal
-				 *     - Null move was done last move. Double null move just burns 2 plies for nothing
-				 *     - Depth is too low for null move to be worth it
-				 *     - Only pawns left for side to move, zugzwang becomes extremely common
-				 */
-				if (notPV && doNull && depth >= 3 && GetNumberOfSetBits((board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
-					board.GetPieceBitboard(PieceType.Pawn, board.IsWhiteToMove)) >= 2 && board.TrySkipTurn())
+					/*
+					 * Make a "null move" and see if we can get a fail high
+					 * Disabled if:
+					 *     - In Check, position after null move will be illegal
+					 *     - Null move was done last move. Double null move just burns 2 plies for nothing
+					 *     - Depth is too low for null move to be worth it
+					 *     - Only pawns left for side to move, zugzwang becomes extremely common
+					 */
+				if (doNull && depth >= 3 && GetNumberOfSetBits((board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
+					board.GetPieceBitboard(PieceType.Pawn, board.IsWhiteToMove)) >= 2)
 				{
-					int nullScore = LocalSearch(-beta, 2 + depth / 3, false);
+					board.ForceSkipTurn();
+					// it isn't used anymore so we can reuse it
+					it = LocalSearch(-beta, 2 + depth / 3, false);
 					board.UndoSkipTurn();
-					if (nullScore >= beta)
-						return beta;
+					if (it >= beta)
+						return it;
 				}
 			}
 
@@ -617,23 +613,17 @@ public class MyBot : IChessBot
 
 			MemoryExtensions.Sort(moveScores, moves);
 
-			Move bestMove = Move.NullMove;
-			int bestScore = isQSearch ? eval : -32000;
-			for (int i = 0; i < moves.Length; i++)
+			Move bestMove = default;
+			int bestScore = isQSearch ? staticEval : -32000, movesPlayed = 0;
+			byte ttType = 2;
+			foreach (Move move in moves)
 			{
-				Move move = moves[i];
 				board.MakeMove(move);
-				ply++;
 				int score;
-				if (i == 0 || isQSearch)
+				if (movesPlayed++ == 0 || isQSearch)
 					score = LocalSearch(-beta);
-				else
-				{
-					score = LocalSearch(-alpha - 1);
-					if (score > alpha && !notPV)
-						score = LocalSearch(-beta);
-				}
-				ply--;
+				else if ((score = LocalSearch(-alpha - 1)) > alpha && !notPV)
+					score = LocalSearch(-beta);
 				board.UndoMove(move);
 				if (shouldStop)
 					return alpha;
@@ -648,27 +638,29 @@ public class MyBot : IChessBot
 					{
 						alpha = score;
 						bestMove = move;
+						ttType = 1;
 					}
 					if (alpha >= beta)
-						break;
-				}
-			}
-
-			if (!isQSearch)
-			{
-				if (alpha >= beta && !bestMove.IsCapture && !bestMove.IsPromotion)
-				{
-					if (bestMove != killerMoves[ply, 0])
 					{
-						killerMoves[ply, 1] = killerMoves[ply, 0];
-						killerMoves[ply, 0] = bestMove;
+						if (!isQSearch && !bestMove.IsCapture && !bestMove.IsPromotion)
+						{
+							if (bestMove != killerMoves[ply, 0])
+							{
+								killerMoves[ply, 1] = killerMoves[ply, 0];
+								killerMoves[ply, 0] = bestMove;
+							}
+							history[bestMove.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
+						}
+						ttType = 3;
+						break;
 					}
-					history[bestMove.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
 				}
-				ttEntry = (board.ZobristKey, bestScore, bestMove.RawValue, (byte)depth, (byte)(alpha >= beta ? 3 : bestMove.IsNull ? 2 : 1));
 			}
 
-			return alpha;
+			// prevent negative depth from overflowing in transposition table
+			ttEntry = (board.ZobristKey, bestScore, bestMove.RawValue, (byte)Math.Max(depth, 0), ttType);
+
+			return bestScore;
 		}
 	}
 }
