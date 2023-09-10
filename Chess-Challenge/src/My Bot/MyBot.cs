@@ -312,9 +312,7 @@ using static ChessChallenge.API.BitboardHelper;
 
 public class MyBot : IChessBot
 {
-	private Move bestMove;
-	private Board board;
-	private Timer timer;
+	private Move bestMoveRoot;
 
 	private int ply, millisAlloced, nodes, phase, evalMG, evalEG, sq, it, psqtIdx;
 	private bool shouldStop;
@@ -409,16 +407,12 @@ public class MyBot : IChessBot
 	byte[] PSQT;
 	Move[,] killerMoves = new Move[128, 2];
 
-	// because of token shortages, only TT moves are stored
-	ushort[] ttMoves = new ushort[67108864];
-
-	ulong ttIndex
-	{
-		get
-		{
-			return board.ZobristKey % 67108864;
-		}
-	}
+	// Item1 = zobrist key
+	// Item2 = score
+	// Item3 = bestMove(ushort, move.RawValue)
+	// Item4 = depth
+	// Item5 = flag, 0 = exact, 1 = upper bound, 2 = lower bound
+	(ulong, int, ushort, byte, byte)[] ttEntries = new (ulong, int, ushort, byte, byte)[8388608];
 
 	public MyBot()
 	{
@@ -482,9 +476,6 @@ public class MyBot : IChessBot
 		shouldStop = false;
 		ply = nodes = 0;
 
-		this.board = board;
-		this.timer = timer;
-
 		// this is important
 		Array.Clear(history);
 		/*for (int i = 1; i < 128; i++)
@@ -505,165 +496,179 @@ public class MyBot : IChessBot
 			//break;
 			//Console.WriteLine(nodes);
 			//Console.ForegroundColor = ConsoleColor.Green;
-			//Console.WriteLine($"Mine Depth: {i - 1}, Move: {bestMove} eval: {eval}");
+			//Console.WriteLine($"Mine Depth: {i - 1}, Move: {bestMoveRoot} eval: {eval}");
 		}
-		return bestMove;
-	}
+		return bestMoveRoot;
 
-	int evaluate()
-	{
-		phase = evalMG = evalEG = it = 0;
 
-		// incremented on line 267
-		for (; it < 6; it++)
+
+
+		// use local access board and timer with no token overhead
+		// idea from antares
+		int evaluate()
 		{
-			foreach (bool stm in new bool[] { true, false })
-			{
-				ulong pieceBB = board.GetPieceBitboard((PieceType)(it + 1), stm);
-				int sign = stm ? 1 : -1;
-				//blackBB = board.GetPieceBitboard((PieceType)(it + 1), false);
+			phase = evalMG = evalEG = it = 0;
 
-				while (pieceBB != 0)
+			// incremented on line 267
+			for (; it < 6; it++)
+			{
+				foreach (bool stm in new bool[] { true, false })
 				{
-					sq = ClearAndGetIndexOfLSB(ref pieceBB) ^ (stm ? 0b111000 : 0);
-					evalMG += sign * (PSQT[psqtIdx = it * 64 + sq] + (int)(799681242290199 >> it * 10 & 1023));
-					evalEG += sign * (PSQT[384 + psqtIdx] + (int)(700778869297214 >> it * 10 & 1023));
-					phase += 17480 >> 3 * it & 7;
+					ulong pieceBB = board.GetPieceBitboard((PieceType)(it + 1), stm);
+					int sign = stm ? 1 : -1;
+					//blackBB = board.GetPieceBitboard((PieceType)(it + 1), false);
+
+					while (pieceBB != 0)
+					{
+						sq = ClearAndGetIndexOfLSB(ref pieceBB) ^ (stm ? 0b111000 : 0);
+						evalMG += sign * (PSQT[psqtIdx = it * 64 + sq] + (int)(799681242290199 >> it * 10 & 1023));
+						evalEG += sign * (PSQT[384 + psqtIdx] + (int)(700778869297214 >> it * 10 & 1023));
+						phase += 17480 >> 3 * it & 7;
+					}
 				}
 			}
-		}
-		// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
-		return (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
-	}
-
-	int Search(int depth, int alpha, int beta, bool doNull)
-	{
-		// local search function to save tokens, idea from Tyrant
-		int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => -Search(depth - R, localAlpha, -alpha, localDoNull);
-
-		if (board.IsInCheck())
-			depth++;
-		bool notPV = beta - alpha == 1;
-
-		bool isQSearch = depth <= 0;
-		if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
-		{
-			shouldStop = true;
-			return alpha;
+			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
+			return (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
 		}
 
-
-		int eval = evaluate();
-		if (isQSearch)
+		int Search(int depth, int alpha, int beta, bool doNull)
 		{
-			if (eval >= beta)
-				return beta;
-			// delta pruning
-			if (eval < alpha - 900)
+			// local search function to save tokens, idea from Tyrant
+			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => -Search(depth - R, localAlpha, -alpha, localDoNull);
+
+			if (board.IsInCheck())
+				depth++;
+			bool notPV = beta - alpha == 1;
+
+			bool isQSearch = depth <= 0;
+			if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
+			{
+				shouldStop = true;
 				return alpha;
-			if (eval > alpha)
-				alpha = eval;
-		}
-		else
-		{
+			}
+
+
 			if (board.IsInsufficientMaterial() || board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
 				return 0;
 
-			if (notPV && !board.IsInCheck() && depth <= 6 && eval - depth * 70 >= beta)
-				return beta;
+			ref var ttEntry = ref ttEntries[board.ZobristKey % 8388608];
 
-			// null move pruning
-			/*
-             * Make a "null move" and see if we can get a fail high
-             * Disabled if:
-             *     - In Check, position after null move will be illegal
-             *     - Null move was done last move. Double null move just burns 2 plies for nothing
-             *     - Depth is less than reduction factor
-             *     - Only pawns left for side to move, zugzwang becomes extremely common
-             */
-			if (notPV && doNull && depth >= 3 && GetNumberOfSetBits((board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
-				board.GetPieceBitboard(PieceType.Pawn, board.IsWhiteToMove)) >= 2 && board.TrySkipTurn())
+			if (notPV && ttEntry.Item1 == board.ZobristKey && ttEntry.Item4 >= depth &&
+				(ttEntry.Item5 == 1 ||
+				ttEntry.Item5 == 2 && ttEntry.Item2 <= alpha ||
+				ttEntry.Item5 == 3 && ttEntry.Item2 >= beta))
+				return ttEntry.Item2;
+
+
+			int eval = evaluate();
+			if (isQSearch)
 			{
-				int nullScore = LocalSearch(-beta, 2 + depth / 3, false);
-				board.UndoSkipTurn();
-				if (nullScore >= beta)
+				if (eval >= beta)
 					return beta;
+				// delta pruning
+				if (eval < alpha - 900)
+					return alpha;
+				if (eval > alpha)
+					alpha = eval;
 			}
-		}
-
-		Span<Move> moves = stackalloc Move[256];
-		board.GetLegalMovesNonAlloc(ref moves, isQSearch);
-
-		if (moves.Length == 0 && !isQSearch)
-			return board.IsInCheck() ? ply - 32000 : 0;
-
-		// move ordering with TT, MVV_LVA, and killer moves
-		Span<int> moveScores = stackalloc int[moves.Length];
-		for (int i = 0; i < moves.Length; i++)
-			moveScores[i] =
-				moves[i].RawValue == ttMoves[ttIndex] ? -1000000 :
-				// order by MVP MVV LVA
-				// (1) most valuable promotion
-				// (2) most valuable victim(captured piece)
-				// (3) least valuable attacker(moving piece)
-				moves[i].IsCapture || moves[i].IsPromotion ?
-					(int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
-				moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1] ? 100 :
-				2000000000 - history[moves[i].RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
-
-		MemoryExtensions.Sort(moveScores, moves);
-
-		Move best = Move.NullMove;
-		for (int i = 0; i < moves.Length; i++)
-		{
-			Move move = moves[i];
-			board.MakeMove(move);
-			ply++;
-			// check extension, don't decrement depth if in check after make move
-			int score;
-			if (i == 0 || isQSearch)
-				score = LocalSearch(-beta);
 			else
 			{
-				score = LocalSearch(-alpha - 1);
-				if (score > alpha && !notPV)
-					score = LocalSearch(-beta);
-			}
-			ply--;
-			board.UndoMove(move);
-			if (shouldStop)
-				return alpha;
+				if (notPV && !board.IsInCheck() && depth <= 6 && eval - depth * 70 >= beta)
+					return beta;
 
-			if (score >= beta)
-			{
-				if (!isQSearch)
+				// null move pruning
+				/*
+				 * Make a "null move" and see if we can get a fail high
+				 * Disabled if:
+				 *     - In Check, position after null move will be illegal
+				 *     - Null move was done last move. Double null move just burns 2 plies for nothing
+				 *     - Depth is too low for null move to be worth it
+				 *     - Only pawns left for side to move, zugzwang becomes extremely common
+				 */
+				if (notPV && doNull && depth >= 3 && GetNumberOfSetBits((board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
+					board.GetPieceBitboard(PieceType.Pawn, board.IsWhiteToMove)) >= 2 && board.TrySkipTurn())
 				{
-					if (!move.IsCapture && !move.IsPromotion)
-					{
-						if (move != killerMoves[ply, 0])
-						{
-							killerMoves[ply, 1] = killerMoves[ply, 0];
-							killerMoves[ply, 0] = move;
-						}
-						history[move.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
-					}
-					ttMoves[ttIndex] = move.RawValue;
+					int nullScore = LocalSearch(-beta, 2 + depth / 3, false);
+					board.UndoSkipTurn();
+					if (nullScore >= beta)
+						return beta;
 				}
-				return beta;
 			}
 
-			if (score > alpha)
+			Span<Move> moves = stackalloc Move[256];
+			board.GetLegalMovesNonAlloc(ref moves, isQSearch);
+
+			if (moves.Length == 0 && !isQSearch)
+				return board.IsInCheck() ? ply - 32000 : 0;
+
+			// move ordering with TT, MVV_LVA, and killer moves
+			Span<int> moveScores = stackalloc int[moves.Length];
+			for (int i = 0; i < moves.Length; i++)
+				moveScores[i] =
+					moves[i].RawValue == ttEntry.Item3 ? -1000000 :
+					// order by MVP MVV LVA
+					// (1) most valuable promotion
+					// (2) most valuable victim(captured piece)
+					// (3) least valuable attacker(moving piece)
+					moves[i].IsCapture || moves[i].IsPromotion ?
+						(int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
+					moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1] ? 100 :
+					2000000000 - history[moves[i].RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
+
+			MemoryExtensions.Sort(moveScores, moves);
+
+			Move bestMove = Move.NullMove;
+			int bestScore = isQSearch ? eval : -32000;
+			for (int i = 0; i < moves.Length; i++)
 			{
-				alpha = score;
-				best = move;
-				if (ply == 0)
-					bestMove = move;
+				Move move = moves[i];
+				board.MakeMove(move);
+				ply++;
+				int score;
+				if (i == 0 || isQSearch)
+					score = LocalSearch(-beta);
+				else
+				{
+					score = LocalSearch(-alpha - 1);
+					if (score > alpha && !notPV)
+						score = LocalSearch(-beta);
+				}
+				ply--;
+				board.UndoMove(move);
+				if (shouldStop)
+					return alpha;
+
+				if (score > bestScore)
+				{
+					bestScore = score;
+					if (ply == 0)
+						bestMoveRoot = move;
+
+					if (score > alpha)
+					{
+						alpha = score;
+						bestMove = move;
+					}
+					if (alpha >= beta)
+						break;
+				}
 			}
+
+			if (!isQSearch)
+			{
+				if (alpha >= beta && !bestMove.IsCapture && !bestMove.IsPromotion)
+				{
+					if (bestMove != killerMoves[ply, 0])
+					{
+						killerMoves[ply, 1] = killerMoves[ply, 0];
+						killerMoves[ply, 0] = bestMove;
+					}
+					history[bestMove.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
+				}
+				ttEntry = (board.ZobristKey, bestScore, bestMove.RawValue, (byte)depth, (byte)(alpha >= beta ? 3 : bestMove.IsNull ? 2 : 1));
+			}
+
+			return alpha;
 		}
-
-		if (!isQSearch)
-			ttMoves[ttIndex] = best.RawValue;
-
-		return alpha;
 	}
 }
