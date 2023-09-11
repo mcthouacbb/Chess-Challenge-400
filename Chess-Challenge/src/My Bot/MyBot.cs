@@ -501,11 +501,14 @@ public class MyBot : IChessBot
 			// local search function to save tokens, idea from Tyrant
 			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => -Search(depth - R, localAlpha, -alpha, localDoNull, ply + 1);
 
+			// cache in check, used often
+			bool inCheck = board.IsInCheck();
+
 			// Certain things should not be done at the root node
 			if (ply > 0)
 			{
 				// check extension
-				if (board.IsInCheck())
+				if (inCheck)
 					depth++;
 
 				// check for time up
@@ -579,7 +582,7 @@ public class MyBot : IChessBot
 					alpha = staticEval;
 			}
 			// pruning is disabled in pv nodes and when the side to move is in check
-			else if (notPV && !board.IsInCheck())
+			else if (notPV && !inCheck)
 			{
 				// reverse futility pruning
 				/* If, at lower depths, our static eval is above beta by a significant margin
@@ -619,7 +622,7 @@ public class MyBot : IChessBot
 			board.GetLegalMovesNonAlloc(ref moves, isQSearch);
 
 			if (moves.Length == 0 && !isQSearch)
-				return board.IsInCheck() ? ply - 32000 : 0;
+				return inCheck ? ply - 32000 : 0;
 
 			// move ordering with TT, MVV_LVA, killer moves, and history
 			// move scores are negated because sorting defaults to non-decreasing
