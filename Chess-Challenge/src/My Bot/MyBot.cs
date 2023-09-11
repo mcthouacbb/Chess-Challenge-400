@@ -405,7 +405,7 @@ public class MyBot : IChessBot
 	//     firstIndex * 384 + secondIndex * 64 + thirdIndex
 	int[] history = new int[8192];
 	byte[] PSQT;
-	Move[,] killerMoves = new Move[128, 2];
+	Move[] killerMoves = new Move[128];
 
 	// Item1 = zobrist key
 	// Item2 = score
@@ -510,21 +510,25 @@ public class MyBot : IChessBot
 			// local search function to save tokens, idea from Tyrant
 			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => -Search(depth - R, localAlpha, -alpha, localDoNull, ply + 1);
 
-			// check extension
-			if (board.IsInCheck())
-				depth++;
-
-			bool notPV = beta - alpha == 1, isQSearch = depth <= 0;
-
-			if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
+			if (ply > 0)
 			{
-				shouldStop = true;
-				return alpha;
+				// check extension
+				if (board.IsInCheck())
+					depth++;
+
+
+				if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
+				{
+					shouldStop = true;
+					return alpha;
+				}
+
+
+				if (board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
+					return 0;
 			}
 
-
-			if (board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
-				return 0;
+			bool notPV = beta - alpha == 1, isQSearch = depth <= 0;
 
 			ref var ttEntry = ref ttEntries[board.ZobristKey % 8388608];
 
@@ -625,7 +629,7 @@ public class MyBot : IChessBot
 					moves[i].IsCapture || moves[i].IsPromotion ?
 						(int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
 					// Use the killer moves from current ply to order first quiet moves
-					moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1] ? 100 :
+					moves[i] == killerMoves[ply] ? 100 :
 					// Order the rest of the quiet moves by their history score
 					2000000000 - history[moves[i].RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
 
@@ -677,11 +681,7 @@ public class MyBot : IChessBot
 					{
 						if (!isQSearch && !bestMove.IsCapture && !bestMove.IsPromotion)
 						{
-							if (bestMove != killerMoves[ply, 0])
-							{
-								killerMoves[ply, 1] = killerMoves[ply, 0];
-								killerMoves[ply, 0] = bestMove;
-							}
+							killerMoves[ply] = bestMove;
 							history[bestMove.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
 						}
 						ttType = 3;

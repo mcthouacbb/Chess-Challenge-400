@@ -593,8 +593,7 @@ public class MyBotOld : IChessBot
 				 *     - Depth is too low for null move to be worth it
 				 *     - Only pawns left for side to move, zugzwang becomes extremely common
 				 */
-				if (doNull && depth >= 3 && GetNumberOfSetBits((board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
-					board.GetPieceBitboard(PieceType.Pawn, board.IsWhiteToMove)) >= 2)
+				if (doNull && depth >= 3 && phase > 2)
 				{
 					board.ForceSkipTurn();
 					// it isn't used anymore so we can reuse it
