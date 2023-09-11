@@ -510,11 +510,12 @@ public class MyBot : IChessBot
 			// local search function to save tokens, idea from Tyrant
 			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => -Search(depth - R, localAlpha, -alpha, localDoNull, ply + 1);
 
+			// check extension
 			if (board.IsInCheck())
 				depth++;
-			bool notPV = beta - alpha == 1;
 
-			bool isQSearch = depth <= 0;
+			bool notPV = beta - alpha == 1, isQSearch = depth <= 0;
+
 			if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
 			{
 				shouldStop = true;
@@ -527,6 +528,7 @@ public class MyBot : IChessBot
 
 			ref var ttEntry = ref ttEntries[board.ZobristKey % 8388608];
 
+			// tt cutoffs
 			if (notPV && ttEntry.Item1 == board.ZobristKey && ttEntry.Item4 >= depth &&
 				(ttEntry.Item5 == 1 ||
 				ttEntry.Item5 == 2 && ttEntry.Item2 <= alpha ||
@@ -537,6 +539,7 @@ public class MyBot : IChessBot
 			phase = evalMG = evalEG = it = 0;
 
 			// incremented on line 267
+			// evaluation based on material and piece square tables
 			for (; it < 6; it++)
 			{
 				for (int stm = 2; --stm >= 0;)
@@ -556,10 +559,11 @@ public class MyBot : IChessBot
 				}
 			}
 			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
-			int staticEval = (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24);
+			int staticEval = (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24), bestScore = -32000, movesPlayed = 0;
 
 			if (isQSearch)
 			{
+				bestScore = staticEval;
 				if (staticEval >= beta)
 					return staticEval;
 				if (staticEval > alpha)
@@ -567,18 +571,28 @@ public class MyBot : IChessBot
 			}
 			else if (notPV && !board.IsInCheck())
 			{
+				// reverse futility pruning
+				/* If, at lower depths, our static eval is above beta by a significant margin
+				 * we assume that it will hold above beta and prune the node early
+				 * This will inevitably prune some nodes that don't hold above beta
+				 * but the increase in search speed is well worth that risk
+				 * The depth based margin and depth condition also ensure that rfp won't prune a node if we search far enough
+				 */
 				if (depth <= 6 && staticEval - depth * 70 >= beta)
 					return staticEval;
 
 				// null move pruning
-					/*
-					 * Make a "null move" and see if we can get a fail high
-					 * Disabled if:
-					 *     - In Check, position after null move will be illegal
-					 *     - Null move was done last move. Double null move just burns 2 plies for nothing
-					 *     - Depth is too low for null move to be worth it
-					 *     - Only pawns left for side to move, zugzwang becomes extremely common
-					 */
+				/*
+				 * Make a "null move" and see if we can get a fail high
+				 * If we make a null move, we are effectively allowing the opponent to make 2 moves in a row
+				 * If the opponent makes 2 moves in a row and still cannot bring the score below beta
+				 * Then somewhere up the tree
+				 * Disabled if:
+				 *     - In Check, position after null move will be illegal
+				 *     - Null move was done last move. Double null move just burns 2 plies for nothing
+				 *     - Depth is too low for null move to be worth it
+				 *     - Only pawns left for side to move, zugzwang becomes extremely common
+				 */
 				if (doNull && depth >= 3 && GetNumberOfSetBits((board.IsWhiteToMove ? board.WhitePiecesBitboard : board.BlackPiecesBitboard) ^
 					board.GetPieceBitboard(PieceType.Pawn, board.IsWhiteToMove)) >= 2)
 				{
@@ -591,6 +605,7 @@ public class MyBot : IChessBot
 				}
 			}
 
+			// stack allocated moves are quite a bit faster
 			Span<Move> moves = stackalloc Move[256];
 			board.GetLegalMovesNonAlloc(ref moves, isQSearch);
 
@@ -598,31 +613,50 @@ public class MyBot : IChessBot
 				return board.IsInCheck() ? ply - 32000 : 0;
 
 			// move ordering with TT, MVV_LVA, and killer moves
+			// move scores are negated because sorting defaults to non-decreasing
 			Span<int> moveScores = stackalloc int[moves.Length];
 			for (int i = 0; i < moves.Length; i++)
 				moveScores[i] =
+					// tt move ordering, use the move in the transposition table as the first move
 					moves[i].RawValue == ttEntry.Item3 ? -1000000 :
-					// order by MVP MVV LVA
+					// order noisy moves(moves that directly affect the material balance) by MVP MVV LVA
 					// (1) most valuable promotion
 					// (2) most valuable victim(captured piece)
 					// (3) least valuable attacker(moving piece)
 					moves[i].IsCapture || moves[i].IsPromotion ?
 						(int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
+					// Use the killer moves from current ply to order first quiet moves
 					moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1] ? 100 :
+					// Order the rest of the quiet moves by their history score
 					2000000000 - history[moves[i].RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
 
 			MemoryExtensions.Sort(moveScores, moves);
 
 			Move bestMove = default;
-			int bestScore = isQSearch ? staticEval : -32000, movesPlayed = 0;
 			byte ttType = 2;
 			foreach (Move move in moves)
 			{
 				board.MakeMove(move);
+				bool isQuiet = !move.IsCapture && !move.IsPromotion;
 				int score;
+				// PVS
+				/* Disabled in quiescence search
+				 * Search the first move with a full [-beta, -alpha] window
+				 *
+				 * Search the rest of the moves with zero window [-alpha - 1, -alpha]
+				 * If a move does not fail low on a [-alpha - 1, -alpha] window, and we aren't already in a zero window
+				 * we research with the full window
+				 *
+				 * Searching with a zero window is faster than a full window
+				 * This technique scales with good move ordering. The more researches we do, the worse it performs
+				 */
+				int reduction = movesPlayed >= (notPV ? 3 : 5) &&
+					depth >= 3 &&
+					isQuiet ? 2 : 1;
+
 				if (movesPlayed++ == 0 || isQSearch)
 					score = LocalSearch(-beta);
-				else if ((score = LocalSearch(-alpha - 1)) > alpha && !notPV)
+				else if ((score = LocalSearch(-alpha - 1, reduction)) > alpha && (reduction > 1 || !notPV))
 					score = LocalSearch(-beta);
 				board.UndoMove(move);
 				if (shouldStop)
