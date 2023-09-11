@@ -652,7 +652,7 @@ public class MyBotOld : IChessBot
 				 */
 				int reduction = movesPlayed >= (notPV ? 3 : 5) &&
 					depth >= 3 &&
-					isQuiet ? 2 : 1;
+					isQuiet ? 2 + depth / 8 + movesPlayed / 19 : 1;
 
 				if (movesPlayed++ == 0 || isQSearch)
 					score = LocalSearch(-beta);
