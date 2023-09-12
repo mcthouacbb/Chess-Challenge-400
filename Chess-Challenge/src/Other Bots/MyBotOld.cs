@@ -403,9 +403,9 @@ public class MyBotOld : IChessBot
 	//     square
 	// index calculation
 	//     firstIndex * 384 + secondIndex * 64 + thirdIndex
-	int[] history = new int[8192];
+	int[] history;
 	byte[] PSQT;
-	Move[,] killerMoves = new Move[128, 2];
+	Move[] killerMoves = new Move[128];
 
 	// Item1 = zobrist key
 	// Item2 = score
@@ -475,18 +475,9 @@ public class MyBotOld : IChessBot
 		millisAlloced = timer.MillisecondsRemaining / 40;
 		shouldStop = false;
 
-		// this is important
-		Array.Clear(history);
-		/*for (int i = 1; i < 128; i++)
-        {
-            for (;;)
-            {
-                search(i, alpha, beta, false);
-                if (eval <= alpha)
-                    beta = (alpha + beta) / 2;
-                    alpha = alpha - (delta *= 2);
-            }
-        }*/
+		// We recreate the history every time to clear it
+		// This saves tokens
+		history = new int[8192];
 		for (int i = 1; i < 128;)
 		{
 			Search(i++, -200000, 200000, false, 0);
@@ -497,34 +488,45 @@ public class MyBotOld : IChessBot
 			//Console.ForegroundColor = ConsoleColor.Green;
 			//Console.WriteLine($"Mine Depth: {i - 1}, Move: {bestMoveRoot} eval: {eval}");
 		}
+		// this utilizes partial search results
 		return bestMoveRoot;
 
 
 
 
-		// use local access board and timer with no token overhead
+		// use local function to access board and timer with no token overhead
 		// idea from antares
-
 		int Search(int depth, int alpha, int beta, bool doNull, int ply)
 		{
 			// local search function to save tokens, idea from Tyrant
 			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => -Search(depth - R, localAlpha, -alpha, localDoNull, ply + 1);
 
-			// check extension
-			if (board.IsInCheck())
-				depth++;
+			// cache in check, used often
+			bool inCheck = board.IsInCheck();
 
-			bool notPV = beta - alpha == 1, isQSearch = depth <= 0;
-
-			if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
+			// Certain things should not be done at the root node
+			if (ply > 0)
 			{
-				shouldStop = true;
-				return alpha;
+				// check extension
+				if (inCheck)
+					depth++;
+
+				// check for time up
+				// the node check is to avoid checking the timer too often, which can degrade the search speed
+				// calling the timer is not a cheap operation
+				if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > millisAlloced || shouldStop)
+				{
+					shouldStop = true;
+					return alpha;
+				}
+
+				// check for drawn position
+				// insuf material is not important and doesn't gain much elo
+				if (board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
+					return 0;
 			}
 
-
-			if (board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
-				return 0;
+			bool notPV = beta - alpha == 1, isQSearch = depth <= 0;
 
 			ref var ttEntry = ref ttEntries[board.ZobristKey % 8388608];
 
@@ -540,19 +542,26 @@ public class MyBotOld : IChessBot
 
 			// incremented on line 267
 			// evaluation based on material and piece square tables
+			// loop through all pieces
 			for (; it < 6; it++)
 			{
+				// loop through side to move(1 = white, 0 = black)
 				for (int stm = 2; --stm >= 0;)
 				{
 					ulong pieceBB = board.GetPieceBitboard((PieceType)(it + 1), stm == 1);
-					//blackBB = board.GetPieceBitboard((PieceType)(it + 1), false);
 
+					// loop through bit indices in pieceBB
 					while (pieceBB != 0)
 					{
+						// get the square, and flip it's y value if stm is white(piece square tables are black relative)
 						sq = ClearAndGetIndexOfLSB(ref pieceBB) ^ stm * 0b111000;
+						// add the middlegame piece square table and material value
 						evalMG += PSQT[psqtIdx = it * 64 + sq] + (int)(799681242290199 >> it * 10 & 1023);
+						// add the endgame piece square table and material value
 						evalEG += PSQT[384 + psqtIdx] + (int)(700778869297214 >> it * 10 & 1023);
+						// add the phase
 						phase += 17480 >> 3 * it & 7;
+						// bitwise operations are used to save tokens
 					}
 					evalMG *= -1;
 					evalEG *= -1;
@@ -563,13 +572,17 @@ public class MyBotOld : IChessBot
 
 			if (isQSearch)
 			{
+				/* Quiescence search is in the same function as the main search to save tokens
+				 * Not sure where this idea originated from
+				 */
 				bestScore = staticEval;
 				if (staticEval >= beta)
 					return staticEval;
 				if (staticEval > alpha)
 					alpha = staticEval;
 			}
-			else if (notPV && !board.IsInCheck())
+			// pruning is disabled in pv nodes and when the side to move is in check
+			else if (notPV && !inCheck)
 			{
 				// reverse futility pruning
 				/* If, at lower depths, our static eval is above beta by a significant margin
@@ -609,9 +622,9 @@ public class MyBotOld : IChessBot
 			board.GetLegalMovesNonAlloc(ref moves, isQSearch);
 
 			if (moves.Length == 0 && !isQSearch)
-				return board.IsInCheck() ? ply - 32000 : 0;
+				return inCheck ? ply - 32000 : 0;
 
-			// move ordering with TT, MVV_LVA, and killer moves
+			// move ordering with TT, MVV_LVA, killer moves, and history
 			// move scores are negated because sorting defaults to non-decreasing
 			Span<int> moveScores = stackalloc int[moves.Length];
 			for (int i = 0; i < moves.Length; i++)
@@ -625,10 +638,11 @@ public class MyBotOld : IChessBot
 					moves[i].IsCapture || moves[i].IsPromotion ?
 						(int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
 					// Use the killer moves from current ply to order first quiet moves
-					moves[i] == killerMoves[ply, 0] || moves[i] == killerMoves[ply, 1] ? 100 :
+					moves[i] == killerMoves[ply] ? 100 :
 					// Order the rest of the quiet moves by their history score
 					2000000000 - history[moves[i].RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
 
+			// sort moves
 			MemoryExtensions.Sort(moveScores, moves);
 
 			Move bestMove = default;
@@ -636,6 +650,7 @@ public class MyBotOld : IChessBot
 			foreach (Move move in moves)
 			{
 				board.MakeMove(move);
+
 				bool isQuiet = !move.IsCapture && !move.IsPromotion;
 				int score;
 				// PVS
@@ -649,6 +664,12 @@ public class MyBotOld : IChessBot
 				 * Searching with a zero window is faster than a full window
 				 * This technique scales with good move ordering. The more researches we do, the worse it performs
 				 */
+
+				/* Late move reductions
+				 * If a move appears late in the move list and does not seem very good, then we will reduce it's depth.
+				 * If the reduced depth search does not fail low, we research with the full depth
+				 * This will inevitably reduce late moves that are good, but the increase in search speed is well worth it.
+				 */
 				int reduction = movesPlayed >= (notPV ? 3 : 5) &&
 					depth >= 3 &&
 					isQuiet ? 2 + depth / 8 + movesPlayed / 19 : 1;
@@ -657,10 +678,14 @@ public class MyBotOld : IChessBot
 					score = LocalSearch(-beta);
 				else if ((score = LocalSearch(-alpha - 1, reduction)) > alpha && (reduction > 1 || !notPV))
 					score = LocalSearch(-beta);
+
 				board.UndoMove(move);
+
+				// return early if time is up
 				if (shouldStop)
 					return alpha;
 
+				// update the best score
 				if (score > bestScore)
 				{
 					bestScore = score;
@@ -675,13 +700,10 @@ public class MyBotOld : IChessBot
 					}
 					if (alpha >= beta)
 					{
+						// on a fail high, we update the killer moves and history
 						if (!isQSearch && !bestMove.IsCapture && !bestMove.IsPromotion)
 						{
-							if (bestMove != killerMoves[ply, 0])
-							{
-								killerMoves[ply, 1] = killerMoves[ply, 0];
-								killerMoves[ply, 0] = bestMove;
-							}
+							killerMoves[ply] = bestMove;
 							history[bestMove.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
 						}
 						ttType = 3;
