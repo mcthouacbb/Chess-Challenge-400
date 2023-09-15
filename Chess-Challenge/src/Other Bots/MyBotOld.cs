@@ -649,9 +649,11 @@ public class MyBotOld : IChessBot
 			byte ttType = 2;
 			foreach (Move move in moves)
 			{
+				bool isQuiet = !move.IsCapture && !move.IsPromotion;
+				if (notPV && !inCheck && isQuiet && depth <= 3 && movesPlayed >= depth * 10)
+					break;
 				board.MakeMove(move);
 
-				bool isQuiet = !move.IsCapture && !move.IsPromotion;
 				int score;
 				// PVS
 				/* Disabled in quiescence search
