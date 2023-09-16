@@ -171,10 +171,7 @@ public class MyBot : IChessBot
 			ref var ttEntry = ref ttEntries[board.ZobristKey % 8388608];
 
 			// tt cutoffs
-			if (notPV && ttEntry.Item1 == board.ZobristKey && ttEntry.Item4 >= depth &&
-				(ttEntry.Item5 == 1 ||
-				ttEntry.Item5 == 2 && ttEntry.Item2 <= alpha ||
-				ttEntry.Item5 == 3 && ttEntry.Item2 >= beta))
+			if (notPV && ttEntry.Item1 == board.ZobristKey && ttEntry.Item4 >= depth && (ttEntry.Item2 >= beta ? ttEntry.Item5 > 1 : ttEntry.Item5 < 3))
 				return ttEntry.Item2;
 
 
@@ -184,7 +181,6 @@ public class MyBot : IChessBot
 			// evaluation based on material and piece square tables
 			// loop through all pieces
 			for (; it < 6; it++)
-			{
 				// loop through side to move(1 = white, 0 = black)
 				for (int stm = 2; --stm >= 0;)
 				{
@@ -206,7 +202,6 @@ public class MyBot : IChessBot
 					evalMG *= -1;
 					evalEG *= -1;
 				}
-			}
 			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
 			int staticEval = (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24), bestScore = -32000, movesPlayed = 0;
 
@@ -269,26 +264,27 @@ public class MyBot : IChessBot
 			// move ordering with TT, MVV_LVA, killer moves, and history
 			// move scores are negated because sorting defaults to non-decreasing
 			Span<int> moveScores = stackalloc int[moves.Length];
-			for (int i = 0; i < moves.Length; i++)
-				moveScores[i] =
+			it = 0;
+			foreach (Move move in moves)
+				moveScores[it++] =
 					// tt move ordering, use the move in the transposition table as the first move
-					moves[i].RawValue == ttEntry.Item3 ? -1000000 :
+					move.RawValue == ttEntry.Item3 ? -1000000 :
 					// order noisy moves(moves that directly affect the material balance) by MVP MVV LVA
 					// (1) most valuable promotion
 					// (2) most valuable victim(captured piece)
 					// (3) least valuable attacker(moving piece)
-					moves[i].IsCapture || moves[i].IsPromotion ?
-						(int)moves[i].MovePieceType - 6 * (int)moves[i].CapturePieceType - 36 * (int)moves[i].PromotionPieceType :
+					move.IsCapture || move.IsPromotion ?
+						(int)move.MovePieceType - 6 * (int)move.CapturePieceType - 36 * (int)move.PromotionPieceType :
 					// Use the killer moves from current ply to order first quiet moves
-					moves[i] == killerMoves[ply] ? 100 :
+					move == killerMoves[ply] ? 100 :
 					// Order the rest of the quiet moves by their history score
-					2000000000 - history[moves[i].RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
+					2000000000 - history[move.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
 
 			// sort moves
 			MemoryExtensions.Sort(moveScores, moves);
 
 			Move bestMove = default;
-			byte ttType = 2;
+			byte ttType = 1;
 			foreach (Move move in moves)
 			{
 				bool isQuiet = !move.IsCapture && !move.IsPromotion;
@@ -340,7 +336,7 @@ public class MyBot : IChessBot
 					{
 						alpha = score;
 						bestMove = move;
-						ttType = 1;
+						ttType = 2;
 					}
 					if (alpha >= beta)
 					{
