@@ -143,10 +143,10 @@ namespace ChessChallenge.UCI
 
         void BenchCommand(int depth)
         {
-            var bencher = ChallengeController.CreateBot(type);
             foreach (string fen in benchFens)
-            {
-                Chess.Board board = new Chess.Board();
+			{
+				var bencher = ChallengeController.CreateBot(type);
+				Chess.Board board = new Chess.Board();
                 board.LoadPosition(fen);
                 Timer timer = new Timer(999999999, depth, 10000000);
                 //Console.WriteLine($"{timer.MillisecondsRemaining}, {timer.OpponentMillisecondsRemaining}");
