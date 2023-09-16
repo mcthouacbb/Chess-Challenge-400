@@ -147,7 +147,7 @@ public class MyBotOld : IChessBot
 					return 0;
 			}
 
-			bool notPV = beta - alpha == 1, isQSearch = depth <= 0;
+			bool notPV = beta - alpha == 1, isQSearch = depth <= 0, canFPrune = false;
 
 			ref var ttEntry = ref ttEntries[board.ZobristKey % 8388608];
 
@@ -236,6 +236,8 @@ public class MyBotOld : IChessBot
 					if (it >= beta)
 						return it;
 				}
+
+				canFPrune = depth <= 5 && staticEval + depth * 140 + 70 <= alpha;
 			}
 
 			// stack allocated moves are quite a bit faster
@@ -273,6 +275,8 @@ public class MyBotOld : IChessBot
 				bool isQuiet = !move.IsCapture && !move.IsPromotion;
 				if (notPV && !inCheck && isQuiet && depth <= 3 && movesPlayed >= depth * 10)
 					break;
+				if (canFPrune && isQuiet)
+					break;
 				board.MakeMove(move);
 
 				int score;
@@ -297,7 +301,7 @@ public class MyBotOld : IChessBot
 					depth >= 3 &&
 					isQuiet ? 2 + depth / 8 + movesPlayed / 19 : 1;
 
-				if (movesPlayed++ == 0 || isQSearch || (score = LocalSearch(alpha + 1, reduction)) > alpha && (reduction > 1 || !notPV))
+				if (movesPlayed++ == 0 || isQSearch || (score = LocalSearch(alpha + 1, reduction)) > alpha && reduction > 1 | !notPV)
 					score = LocalSearch(beta);
 
 				board.UndoMove(move);

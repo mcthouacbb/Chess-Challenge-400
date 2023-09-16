@@ -1,8 +1,11 @@
 {
   "profiles": {
     "Chess-Challenge": {
+      "commandName": "Project"
+    },
+    "UCI": {
       "commandName": "Project",
-      "commandLineArgs": ""
+      "commandLineArgs": "uci MyBot"
     }
   }
 }

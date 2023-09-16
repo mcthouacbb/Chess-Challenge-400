@@ -1,4 +1,6 @@
-﻿using ChessChallenge.API;
+﻿#define UCI
+
+using ChessChallenge.API;
 using System;
 using System.Linq;
 using static ChessChallenge.API.BitboardHelper;
@@ -97,6 +99,26 @@ public class MyBot : IChessBot
 		// We recreate the history every time to clear it
 		// This saves tokens
 		history = new int[8192];
+
+		// this is the most horrid bench implementation I have ever written, I wholeheartedly hope that no living creature
+		// will ever be closer than 1000 lightyears to such abominations as I have written here.
+#if UCI
+		//Console.WriteLine($"{timer.MillisecondsRemaining}, lol {timer.OpponentMillisecondsRemaining}");
+		if (timer.MillisecondsRemaining >= 100000000)
+		{
+			nodes = 0;
+			int benchDepth = timer.OpponentMillisecondsRemaining;
+			int startTime = timer.MillisecondsElapsedThisTurn;
+
+			Search(benchDepth, -200000, 200000, false, 0);
+			int endTime = timer.MillisecondsElapsedThisTurn;
+			int time = endTime - startTime;
+
+			Console.WriteLine($"Bench Depth: {benchDepth}, nodes: {nodes}, time: {time}");
+			return default;
+		}
+#endif
+
 		for (int i = 1; i < 128;)
 		{
 			Search(i++, -200000, 200000, false, 0);
@@ -111,9 +133,6 @@ public class MyBot : IChessBot
 		}
 		// this utilizes partial search results
 		return bestMoveRoot;
-
-
-
 
 		// use local function to access board and timer with no token overhead
 		// idea from antares
