@@ -168,11 +168,11 @@ public class MyBot : IChessBot
 
 			bool notPV = beta - alpha == 1, isQSearch = depth <= 0, canFPrune = false;
 
-			ref var ttEntry = ref ttEntries[board.ZobristKey % 8388608];
+			var (ttKey, ttScore, ttMove, ttDepth, ttType) = ttEntries[board.ZobristKey % 8388608];
 
 			// tt cutoffs
-			if (notPV && ttEntry.Item1 == board.ZobristKey && ttEntry.Item4 >= depth && (ttEntry.Item2 >= beta ? ttEntry.Item5 > 1 : ttEntry.Item5 < 3))
-				return ttEntry.Item2;
+			if (notPV && ttKey == board.ZobristKey && ttDepth >= depth && (ttScore >= beta ? ttType > 1 : ttType < 3))
+				return ttScore;
 
 
 			phase = evalMG = evalEG = it = 0;
@@ -268,7 +268,7 @@ public class MyBot : IChessBot
 			foreach (Move move in moves)
 				moveScores[it++] =
 					// tt move ordering, use the move in the transposition table as the first move
-					move.RawValue == ttEntry.Item3 ? -1000000 :
+					move.RawValue == ttMove ? -1000000 :
 					// order noisy moves(moves that directly affect the material balance) by MVP MVV LVA
 					// (1) most valuable promotion
 					// (2) most valuable victim(captured piece)
@@ -284,7 +284,7 @@ public class MyBot : IChessBot
 			MemoryExtensions.Sort(moveScores, moves);
 
 			Move bestMove = default;
-			byte ttType = 1;
+			ttType = 1;
 			foreach (Move move in moves)
 			{
 				bool isQuiet = !move.IsCapture && !move.IsPromotion;
@@ -346,14 +346,14 @@ public class MyBot : IChessBot
 							killerMoves[ply] = bestMove;
 							history[bestMove.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
 						}
-						ttType = 3;
+						ttType++;
 						break;
 					}
 				}
 			}
 
 			// prevent negative depth from overflowing in transposition table
-			ttEntry = (board.ZobristKey, bestScore, bestMove.RawValue, (byte)Math.Max(depth, 0), ttType);
+			ttEntries[board.ZobristKey % 8388608] = (board.ZobristKey, bestScore, bestMove.RawValue, (byte)Math.Max(depth, 0), ttType);
 
 			return bestScore;
 		}
