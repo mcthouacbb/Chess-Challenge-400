@@ -1,4 +1,4 @@
-﻿#define UCI
+﻿//#define UCI
 
 using ChessChallenge.API;
 using System;
@@ -26,7 +26,6 @@ public class MyBot : IChessBot
 	//     square
 	// index calculation
 	//     firstIndex * 384 + secondIndex * 64 + thirdIndex
-	int[] history;
 	byte[] PSQT;
 	Move[] killerMoves = new Move[128];
 
@@ -98,7 +97,7 @@ public class MyBot : IChessBot
 
 		// We recreate the history every time to clear it
 		// This saves tokens
-		history = new int[8192];
+		int[,] history = new int[2, 4096];
 
 		// this is the most horrid bench implementation I have ever written, I wholeheartedly hope that no living creature
 		// will ever be closer than 1000 lightyears to such abominations as I have written here.
@@ -185,7 +184,7 @@ public class MyBot : IChessBot
 				// loop through side to move(1 = white, 0 = black)
 				for (int stm = 2; --stm >= 0;)
 				{
-					ulong pieceBB = board.GetPieceBitboard((PieceType)(it + 1), stm == 1);
+					ulong pieceBB = board.GetPieceBitboard((PieceType)it + 1, stm == 1);
 
 					// bishop pair
 					if (it == 2 && GetNumberOfSetBits(pieceBB) >= 2)
@@ -286,7 +285,7 @@ public class MyBot : IChessBot
 					// Use the killer moves from current ply to order first quiet moves
 					move == killerMoves[ply] ? 100 :
 					// Order the rest of the quiet moves by their history score
-					2000000000 - history[move.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
+					2000000000 - history[ply & 1, move.RawValue & 4095];
 
 			// sort moves
 			MemoryExtensions.Sort(moveScores, moves);
@@ -300,6 +299,7 @@ public class MyBot : IChessBot
 					break;
 				if (canFPrune && isQuiet)
 					break;
+
 				board.MakeMove(move);
 
 				int score;
@@ -352,7 +352,7 @@ public class MyBot : IChessBot
 						if (!isQSearch && isQuiet)
 						{
 							killerMoves[ply] = bestMove;
-							history[bestMove.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
+							history[ply & 1, bestMove.RawValue & 4095] += depth * depth;
 						}
 						ttType++;
 						break;
