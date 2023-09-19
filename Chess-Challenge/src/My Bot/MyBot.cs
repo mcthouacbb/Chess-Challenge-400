@@ -121,7 +121,7 @@ public class MyBot : IChessBot
 		for (int i = 1; i < 128;)
 		{
 			Search(i++, -200000, 200000, false, 0);
-			if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 15)
+			if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 50)
 				break;
 			// if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
 			//if (shouldStop || timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
@@ -153,7 +153,7 @@ public class MyBot : IChessBot
 				// check for time up
 				// the node check is to avoid checking the timer too often, which can degrade the search speed
 				// calling the timer is not a cheap operation
-				if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 30 || shouldStop)
+				if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20 || shouldStop)
 				{
 					shouldStop = true;
 					return alpha;
