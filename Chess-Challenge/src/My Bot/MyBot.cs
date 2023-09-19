@@ -9,7 +9,8 @@ public class MyBot : IChessBot
 {
 	private Move bestMoveRoot;
 
-	private int nodes, phase, evalMG, evalEG, sq, it, psqtIdx;
+	// put the delta here to make c# shut up about unitialized variables
+	private int nodes, phase, evalMG, evalEG, sq, it, psqtIdx, delta;
 	private bool shouldStop;
 
 	// first index 0-1
@@ -118,17 +119,28 @@ public class MyBot : IChessBot
 		}
 #endif
 
-		for (int i = 1; i < 128;)
+		for (int depth = 1, alpha = -64000, beta = 64000; ;)
 		{
-			Search(i++, -200000, 200000, false, 0);
+			int eval = Search(depth, alpha, beta, false, 0);
+			//Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {eval}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
+			//Console.WriteLine($"Timer: {timer.MillisecondsElapsedThisTurn}, t: {timer.MillisecondsRemaining / 15}");
 			if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 50)
 				break;
+			if (eval <= alpha)
+				alpha -= delta *= 2;
+			else if (eval >= beta)
+				beta += delta *= 2;
+			else
+			{
+				alpha = eval - (delta = ++depth <= 6 ? 64000 : 25);
+				beta = eval + delta;
+			}
+
 			// if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
 			//if (shouldStop || timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
 			//break;
 			//Console.WriteLine(nodes);
 			//Console.ForegroundColor = ConsoleColor.Green;
-			//Console.WriteLine($"Mine Depth: {i - 1}, Move: {bestMoveRoot} eval: {eval}, nodes: {nodes}");
 		}
 		// this utilizes partial search results
 		return bestMoveRoot;
@@ -335,11 +347,11 @@ public class MyBot : IChessBot
 				if (it > bestScore)
 				{
 					bestScore = it;
-					if (ply == 0)
-						bestMoveRoot = move;
 
 					if (it > alpha)
 					{
+						if (ply == 0)
+							bestMoveRoot = move;
 						alpha = it;
 						bestMove = move;
 						ttType = 2;
