@@ -1,4 +1,6 @@
-﻿using ChessChallenge.API;
+﻿//#define UCI
+
+using ChessChallenge.API;
 using System;
 using System.Linq;
 using static ChessChallenge.API.BitboardHelper;
@@ -24,16 +26,13 @@ public class MyBotOld : IChessBot
 	//     square
 	// index calculation
 	//     firstIndex * 384 + secondIndex * 64 + thirdIndex
-	int[] history;
 	byte[] PSQT;
-	Move[] killerMoves = new Move[128];
 
 	// Item1 = zobrist key
 	// Item2 = score
 	// Item3 = bestMove(ushort, move.RawValue)
 	// Item4 = depth
 	// Item5 = flag, 0 = exact, 1 = upper bound, 2 = lower bound
-	(ulong, int, ushort, byte, byte)[] ttEntries = new (ulong, int, ushort, byte, byte)[8388608];
 
 	public MyBotOld()
 	{
@@ -96,7 +95,10 @@ public class MyBotOld : IChessBot
 
 		// We recreate the history every time to clear it
 		// This saves tokens
-		history = new int[8192];
+		var history = new int[2, 4096];
+		var killerMoves = new Move[128];
+		var ttEntries = new (ulong, int, ushort, byte, byte)[8388608];
+
 
 		for (int i = 1; i < 128;)
 		{
@@ -118,7 +120,7 @@ public class MyBotOld : IChessBot
 		int Search(int depth, int alpha, int beta, bool doNull, int ply)
 		{
 			// local search function to save tokens, idea from Tyrant
-			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => -Search(depth - R, -localAlpha, -alpha, localDoNull, ply + 1);
+			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => it = -Search(depth - R, -localAlpha, -alpha, localDoNull, ply + 1);
 
 			// cache in check, used often
 			bool inCheck = board.IsInCheck();
@@ -164,7 +166,7 @@ public class MyBotOld : IChessBot
 				// loop through side to move(1 = white, 0 = black)
 				for (int stm = 2; --stm >= 0;)
 				{
-					ulong pieceBB = board.GetPieceBitboard((PieceType)(it + 1), stm == 1);
+					ulong pieceBB = board.GetPieceBitboard((PieceType)it + 1, stm == 1);
 
 					// bishop pair
 					if (it == 2 && GetNumberOfSetBits(pieceBB) >= 2)
@@ -232,7 +234,7 @@ public class MyBotOld : IChessBot
 				{
 					board.ForceSkipTurn();
 					// it isn't used anymore so we can reuse it
-					it = LocalSearch(beta, 2 + depth / 3, false);
+					LocalSearch(beta, 2 + depth / 3, false);
 					board.UndoSkipTurn();
 					if (it >= beta)
 						return it;
@@ -265,7 +267,7 @@ public class MyBotOld : IChessBot
 					// Use the killer moves from current ply to order first quiet moves
 					move == killerMoves[ply] ? 100 :
 					// Order the rest of the quiet moves by their history score
-					2000000000 - history[move.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)];
+					2000000000 - history[ply & 1, move.RawValue & 4095];
 
 			// sort moves
 			MemoryExtensions.Sort(moveScores, moves);
@@ -279,9 +281,8 @@ public class MyBotOld : IChessBot
 					break;
 				if (canFPrune && isQuiet)
 					break;
-				board.MakeMove(move);
 
-				int score;
+				board.MakeMove(move);
 				// PVS
 				/* Disabled in quiescence search
 				 * Search the first move with a full [-beta, -alpha] window
@@ -303,8 +304,8 @@ public class MyBotOld : IChessBot
 					depth >= 3 &&
 					isQuiet ? 2 + depth / 8 + movesPlayed / 19 : 1;
 
-				if (movesPlayed++ == 0 || isQSearch || (score = LocalSearch(alpha + 1, reduction)) > alpha && reduction > 1 | !notPV)
-					score = LocalSearch(beta);
+				if (movesPlayed++ == 0 || isQSearch || LocalSearch(alpha + 1, reduction) > alpha && reduction > 1 | !notPV)
+					LocalSearch(beta);
 
 				board.UndoMove(move);
 
@@ -313,15 +314,15 @@ public class MyBotOld : IChessBot
 					return alpha;
 
 				// update the best score
-				if (score > bestScore)
+				if (it > bestScore)
 				{
-					bestScore = score;
+					bestScore = it;
 					if (ply == 0)
 						bestMoveRoot = move;
 
-					if (score > alpha)
+					if (it > alpha)
 					{
-						alpha = score;
+						alpha = it;
 						bestMove = move;
 						ttType = 2;
 					}
@@ -331,7 +332,7 @@ public class MyBotOld : IChessBot
 						if (!isQSearch && isQuiet)
 						{
 							killerMoves[ply] = bestMove;
-							history[bestMove.RawValue & 4095 + (board.IsWhiteToMove ? 0 : 4096)] += depth * depth;
+							history[ply & 1, bestMove.RawValue & 4095] += depth * depth;
 						}
 						ttType++;
 						break;

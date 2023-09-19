@@ -27,14 +27,12 @@ public class MyBot : IChessBot
 	// index calculation
 	//     firstIndex * 384 + secondIndex * 64 + thirdIndex
 	byte[] PSQT;
-	Move[] killerMoves = new Move[128];
 
 	// Item1 = zobrist key
 	// Item2 = score
 	// Item3 = bestMove(ushort, move.RawValue)
 	// Item4 = depth
 	// Item5 = flag, 0 = exact, 1 = upper bound, 2 = lower bound
-	(ulong, int, ushort, byte, byte)[] ttEntries = new (ulong, int, ushort, byte, byte)[8388608];
 
 	public MyBot()
 	{
@@ -97,7 +95,9 @@ public class MyBot : IChessBot
 
 		// We recreate the history every time to clear it
 		// This saves tokens
-		int[,] history = new int[2, 4096];
+		var history = new int[2, 4096];
+		var killerMoves = new Move[128];
+		var ttEntries = new (ulong, int, ushort, byte, byte)[8388608];
 
 		// this is the most horrid bench implementation I have ever written, I wholeheartedly hope that no living creature
 		// will ever be closer than 1000 lightyears to such abominations as I have written here.
@@ -138,7 +138,7 @@ public class MyBot : IChessBot
 		int Search(int depth, int alpha, int beta, bool doNull, int ply)
 		{
 			// local search function to save tokens, idea from Tyrant
-			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => -Search(depth - R, -localAlpha, -alpha, localDoNull, ply + 1);
+			int LocalSearch(int localAlpha, int R = 1, bool localDoNull = true) => it = -Search(depth - R, -localAlpha, -alpha, localDoNull, ply + 1);
 
 			// cache in check, used often
 			bool inCheck = board.IsInCheck();
@@ -252,7 +252,7 @@ public class MyBot : IChessBot
 				{
 					board.ForceSkipTurn();
 					// it isn't used anymore so we can reuse it
-					it = LocalSearch(beta, 2 + depth / 3, false);
+					LocalSearch(beta, 2 + depth / 3, false);
 					board.UndoSkipTurn();
 					if (it >= beta)
 						return it;
@@ -301,8 +301,6 @@ public class MyBot : IChessBot
 					break;
 
 				board.MakeMove(move);
-
-				int score;
 				// PVS
 				/* Disabled in quiescence search
 				 * Search the first move with a full [-beta, -alpha] window
@@ -324,8 +322,8 @@ public class MyBot : IChessBot
 					depth >= 3 &&
 					isQuiet ? 2 + depth / 8 + movesPlayed / 19 : 1;
 
-				if (movesPlayed++ == 0 || isQSearch || (score = LocalSearch(alpha + 1, reduction)) > alpha && reduction > 1 | !notPV)
-					score = LocalSearch(beta);
+				if (movesPlayed++ == 0 || isQSearch || LocalSearch(alpha + 1, reduction) > alpha && reduction > 1 | !notPV)
+					LocalSearch(beta);
 
 				board.UndoMove(move);
 
@@ -334,15 +332,15 @@ public class MyBot : IChessBot
 					return alpha;
 
 				// update the best score
-				if (score > bestScore)
+				if (it > bestScore)
 				{
-					bestScore = score;
+					bestScore = it;
 					if (ply == 0)
 						bestMoveRoot = move;
 
-					if (score > alpha)
+					if (it > alpha)
 					{
-						alpha = score;
+						alpha = it;
 						bestMove = move;
 						ttType = 2;
 					}
