@@ -237,6 +237,11 @@ public class MyBot : IChessBot
 
 						// bishop pair
 						// putting inside the bit loop was Tyrants idea
+
+						// this technically isn't the same as an actual bishop pair evaluation, because if
+						// there are more than 2 bishops on the board, it will add the bishop pair bonus twice
+						// but in practice, this has no effect on playing strength. The added bonus to a
+						// bishop promotion is completely dwarfed by the value of a queen promotion
 						if (it == 2 && pieceBB != 0)
 						{
 							evalMG += 14;
