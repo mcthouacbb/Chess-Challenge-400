@@ -1,4 +1,4 @@
-﻿//#define UCI
+﻿#define UCI
 
 using ChessChallenge.API;
 using System;
@@ -109,8 +109,30 @@ public class MyBot : IChessBot
 			nodes = 0;
 			int benchDepth = timer.OpponentMillisecondsRemaining;
 			int startTime = timer.MillisecondsElapsedThisTurn;
+			for (int depth = 1, alpha = -64000, beta = 64000; depth <= benchDepth; delta *= 2)
+			{
+				int eval = Search(depth, alpha, beta, false, 0);
+				//Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {eval}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
+				//Console.WriteLine($"Timer: {timer.MillisecondsElapsedThisTurn}, t: {timer.MillisecondsRemaining / 15}");
+				if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 50)
+					break;
+				if (eval <= alpha)
+					alpha -= delta;
+				else if (eval >= beta)
+					beta += delta;
+				else
+				{
+					delta = ++depth <= 6 ? 64000 : 25;
+					alpha = eval - delta;
+					beta = eval + delta;
+				}
 
-			Search(benchDepth, -200000, 200000, false, 0);
+				// if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
+				//if (shouldStop || timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
+				//break;
+				//Console.WriteLine(nodes);
+				//Console.ForegroundColor = ConsoleColor.Green;
+			}
 			int endTime = timer.MillisecondsElapsedThisTurn;
 			int time = endTime - startTime;
 
@@ -119,7 +141,7 @@ public class MyBot : IChessBot
 		}
 #endif
 
-		for (int depth = 1, alpha = -64000, beta = 64000; ;)
+		for (int depth = 1, alpha = -64000, beta = 64000;; delta *= 2)
 		{
 			int eval = Search(depth, alpha, beta, false, 0);
 			//Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {eval}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
@@ -127,12 +149,13 @@ public class MyBot : IChessBot
 			if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 50)
 				break;
 			if (eval <= alpha)
-				alpha -= delta *= 2;
+				alpha -= delta;
 			else if (eval >= beta)
-				beta += delta *= 2;
+				beta += delta;
 			else
 			{
-				alpha = eval - (delta = ++depth <= 6 ? 64000 : 25);
+				delta = ++depth <= 6 ? 64000 : 25;
+				alpha = eval - delta;
 				beta = eval + delta;
 			}
 
@@ -198,12 +221,6 @@ public class MyBot : IChessBot
 				{
 					ulong pieceBB = board.GetPieceBitboard((PieceType)it + 1, stm == 1);
 
-					// bishop pair
-					if (it == 2 && GetNumberOfSetBits(pieceBB) >= 2)
-					{
-						evalMG += 14;
-						evalEG += 51;
-					}
 
 					// loop through bit indices in pieceBB
 					while (pieceBB != 0)
@@ -217,12 +234,22 @@ public class MyBot : IChessBot
 						// add the phase
 						phase += 17480 >> 3 * it & 7;
 						// bitwise operations are used to save tokens
+
+						// bishop pair
+						// putting inside the bit loop was Tyrants idea
+						if (it == 2 && pieceBB != 0)
+						{
+							evalMG += 14;
+							evalEG += 51;
+						}
 					}
 					evalMG *= -1;
 					evalEG *= -1;
 				}
 			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
-			int staticEval = (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24), bestScore = -32000, movesPlayed = 0;
+			int staticEval = (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24),
+				bestScore = -32000,
+				movesPlayed = 0;
 
 			if (isQSearch)
 			{
@@ -270,7 +297,7 @@ public class MyBot : IChessBot
 						return it;
 				}
 
-				canFPrune = depth <= 5 && staticEval + depth * 158 + 79 <= alpha;
+				canFPrune = depth <= 5 && staticEval + depth * 130 + 80 <= alpha;
 			}
 
 			// stack allocated moves are quite a bit faster
