@@ -11,7 +11,6 @@ public class MyBot : IChessBot
 
 	// put the delta here to make c# shut up about unitialized variables
 	private int nodes, phase, evalMG, evalEG, sq, it, psqtIdx, delta;
-	private bool shouldStop;
 
 	// first index 0-1
 	//     0 = middlegame
@@ -54,7 +53,7 @@ public class MyBot : IChessBot
 
 	public Move Think(Board board, Timer timer)
 	{
-		shouldStop = false;
+		bool shouldStop = false;
 
 		// We recreate the history every time to clear it
 		// This saves tokens
@@ -168,6 +167,7 @@ public class MyBot : IChessBot
 			var (ttKey, ttScore, ttMove, ttDepth, ttType) = ttEntries[board.ZobristKey % 8388608];
 
 			// tt cutoffs
+			// ttType stuff is a token optimization from cj
 			if (notPV && ttKey == board.ZobristKey && ttDepth >= depth && (ttScore >= beta ? ttType > 1 : ttType < 3))
 				return ttScore;
 
@@ -264,6 +264,7 @@ public class MyBot : IChessBot
 						return it;
 				}
 
+				// margin for futility pruning
 				canFPrune = depth <= 5 && staticEval + depth * 130 + 80 <= alpha;
 			}
 
@@ -301,9 +302,17 @@ public class MyBot : IChessBot
 			foreach (Move move in moves)
 			{
 				bool isQuiet = !move.IsCapture && !move.IsPromotion;
-				if (notPV && !inCheck && isQuiet && depth <= 3 && movesPlayed >= depth * 10)
-					break;
-				if (canFPrune && isQuiet)
+				// Late move Pruning
+				/* Late Move Pruning
+				 * If this node does not seem promising and the depth is low enough
+				 * We stop searching if we've played a certain number of depth dependent moves
+				 * Most top engines use depth <= 8 and movesPlayed >= 3 + depth * depth / (improving ? 2 : 1) as the canonical formula
+				 * But this formula didn't work for my challenge engine
+				 */
+				// Futility Pruning
+				/* If our static evaluation is below alpha by a significant margin, we stop searching after all tactical moves are searched
+				 */
+				if (notPV && !inCheck && isQuiet && depth <= 3 && movesPlayed >= depth * 10 || canFPrune && isQuiet)
 					break;
 
 				board.MakeMove(move);
