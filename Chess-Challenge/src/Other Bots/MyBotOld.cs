@@ -9,7 +9,6 @@ public class MyBotOld : IChessBot
 
 	// put the delta here to make c# shut up about unitialized variables
 	private int nodes, phase, evalMG, evalEG, sq, it, psqtIdx, delta;
-	private bool shouldStop;
 
 	// first index 0-1
 	//     0 = middlegame
@@ -25,7 +24,24 @@ public class MyBotOld : IChessBot
 	//     square
 	// index calculation
 	//     firstIndex * 384 + secondIndex * 64 + thirdIndex
-	byte[] PSQT;
+	byte[] PSQT = new[] {
+		36014411994817024531219564359m, 11539627997992206830351311462m, 11787149524659654389158387725m, 6875279824090968596597448485m,
+		22059606029562630386530326272m, 21446838662922509742590347079m, 68334227945656684353816206466m, 58708888703642431372614172670m,
+		52196097285463173046727516308m, 44744311995815625154613717169m, 1279162303268390191957902420m, 21445547458123954461288109824m,
+		30436229095286312676494038331m, 18029052332633538399639656542m, 18039913387009878602677569089m, 16171995139082960385936083519m,
+		29805108520357794161329066062m, 31408319397691931342320136529m, 9926556188276928308111419161m, 9038024355902543929591403294m,
+		10248158934457888245594721536m, 10609964209373794976648993316m, 13959580188282084706610906390m, 13663454822123007611288639538m,
+		6832971830044082042278122256m, 13667091100305822902961773079m, 22165001317274436389701551889m, 33571225140001447208779740549m,
+		3467474188099714437775392565m, 333814660396047155746645006m, 18679625459275489648333969485m, 41940358631566963923475318842m,
+		30488540334293500804530786641m, 22679628733914908093055722334m, 3697964817827716725087525m, 626237871652021990419005440m,
+		25166592792934647179151872531m, 70354853293613515050930513m, 26411748278629947916989580344m, 19604363233106857158973998150m,
+		28568471832236762856069157193m, 18020584944198184223109369947m, 11794413005076053092628112686m, 2200354069610088093653080869m,
+		14901423306217113697112104227m, 5613227567387364044929574954m, 8998115544163239236647460628m, 12184057743908308084201503m,
+		9640159175566722565794766108m, 1246468985668233205530956319m, 9013883636166599165991918624m, 1238015967891643148301900315m,
+		8078137051778337775728006163m, 22648310406745462318803522068m, 31074584628720298169310665013m, 24258841419222049658240785270m,
+		23620272192283973572196585025m, 15858761801828818975937365m, 22333884487669623263972830248m, 24261216177319878837210793787m,
+		36339551134038947213601168204m, 26735897238353871726596486006m, 26399616171392032770979810360m, 5623016979495495128997778264m
+	}.SelectMany(decimal.GetBits).Where((x, i) => i % 4 != 3).SelectMany(BitConverter.GetBytes).ToArray();
 
 	// Item1 = zobrist key
 	// Item2 = score
@@ -33,64 +49,9 @@ public class MyBotOld : IChessBot
 	// Item4 = depth
 	// Item5 = flag, 0 = exact, 1 = upper bound, 2 = lower bound
 
-	public MyBotOld()
-	{
-		// using a constructor is probably a hacky way to initialize the tables, but I can't think of any other way
-		PSQT = new[] {
-			36014411994817024531219564359m, 11539627997992206830351311462m, 11787149524659654389158387725m, 6875279824090968596597448485m,
-			22059606029562630386530326272m, 21446838662922509742590347079m, 68334227945656684353816206466m, 58708888703642431372614172670m,
-			52196097285463173046727516308m, 44744311995815625154613717169m, 1279162303268390191957902420m, 21445547458123954461288109824m,
-			30436229095286312676494038331m, 18029052332633538399639656542m, 18039913387009878602677569089m, 16171995139082960385936083519m,
-			29805108520357794161329066062m, 31408319397691931342320136529m, 9926556188276928308111419161m, 9038024355902543929591403294m,
-			10248158934457888245594721536m, 10609964209373794976648993316m, 13959580188282084706610906390m, 13663454822123007611288639538m,
-			6832971830044082042278122256m, 13667091100305822902961773079m, 22165001317274436389701551889m, 33571225140001447208779740549m,
-			3467474188099714437775392565m, 333814660396047155746645006m, 18679625459275489648333969485m, 41940358631566963923475318842m,
-			30488540334293500804530786641m, 22679628733914908093055722334m, 3697964817827716725087525m, 626237871652021990419005440m,
-			25166592792934647179151872531m, 70354853293613515050930513m, 26411748278629947916989580344m, 19604363233106857158973998150m,
-			28568471832236762856069157193m, 18020584944198184223109369947m, 11794413005076053092628112686m, 2200354069610088093653080869m,
-			14901423306217113697112104227m, 5613227567387364044929574954m, 8998115544163239236647460628m, 12184057743908308084201503m,
-			9640159175566722565794766108m, 1246468985668233205530956319m, 9013883636166599165991918624m, 1238015967891643148301900315m,
-			8078137051778337775728006163m, 22648310406745462318803522068m, 31074584628720298169310665013m, 24258841419222049658240785270m,
-			23620272192283973572196585025m, 15858761801828818975937365m, 22333884487669623263972830248m, 24261216177319878837210793787m,
-			36339551134038947213601168204m, 26735897238353871726596486006m, 26399616171392032770979810360m, 5623016979495495128997778264m
-		}.SelectMany(decimal.GetBits).Where((x, i) => i % 4 != 3).SelectMany(BitConverter.GetBytes).ToArray();
-
-		// uncomment to print out eval parameters
-		/*for (int i = 0; i < 3; i++)
-		{
-			Console.Write("{");
-			for (int j = 0; j < 6; j++)
-			{
-				Console.Write($"{MAT_PHASE[6 * i + j]}, ");
-			}
-			Console.WriteLine("}");
-		}
-
-		for (int i = 0; i < 2; i++)
-        {
-            Console.WriteLine("{");
-            for (int j = 0; j < 6; j++)
-            {
-                Console.WriteLine($"\t{((PieceType)(j + 1)).ToString()}");
-                Console.WriteLine("\t{");
-                for (int y = 0; y < 8; y++)
-                {
-                    Console.Write("\t\t");
-                    for (int x = 0; x < 8; x++)
-                    {
-                        Console.Write($"{PSQT[384 * i + 64 * j + 8 * y + x],4}, ");
-                    }
-                    Console.WriteLine();
-                }
-                Console.WriteLine("\t}");
-            }
-            Console.WriteLine("}");
-        }*/
-	}
-
 	public Move Think(Board board, Timer timer)
 	{
-		shouldStop = false;
+		bool shouldStop = false;
 
 		// We recreate the history every time to clear it
 		// This saves tokens
@@ -112,7 +73,7 @@ public class MyBotOld : IChessBot
 				beta += delta;
 			else
 			{
-				delta = ++depth <= 6 ? 64000 : 25;
+				delta = ++depth <= 6 ? 64000 : 15;
 				alpha = eval - delta;
 				beta = eval + delta;
 			}
@@ -164,6 +125,7 @@ public class MyBotOld : IChessBot
 			var (ttKey, ttScore, ttMove, ttDepth, ttType) = ttEntries[board.ZobristKey % 8388608];
 
 			// tt cutoffs
+			// ttType stuff is a token optimization from cj
 			if (notPV && ttKey == board.ZobristKey && ttDepth >= depth && (ttScore >= beta ? ttType > 1 : ttType < 3))
 				return ttScore;
 
@@ -195,6 +157,11 @@ public class MyBotOld : IChessBot
 
 						// bishop pair
 						// putting inside the bit loop was Tyrants idea
+
+						// this technically isn't the same as an actual bishop pair evaluation, because if
+						// there are more than 2 bishops on the board, it will add the bishop pair bonus twice
+						// but in practice, this has no effect on playing strength. The added bonus to a
+						// bishop promotion is completely dwarfed by the value of a queen promotion
 						if (it == 2 && pieceBB != 0)
 						{
 							evalMG += 14;
@@ -205,7 +172,7 @@ public class MyBotOld : IChessBot
 					evalEG *= -1;
 				}
 			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
-			int staticEval = (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24),
+			int staticEval = 8 + (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24),
 				bestScore = -32000,
 				movesPlayed = 0;
 
@@ -255,6 +222,7 @@ public class MyBotOld : IChessBot
 						return it;
 				}
 
+				// margin for futility pruning
 				canFPrune = depth <= 5 && staticEval + depth * 130 + 80 <= alpha;
 			}
 
@@ -292,9 +260,17 @@ public class MyBotOld : IChessBot
 			foreach (Move move in moves)
 			{
 				bool isQuiet = !move.IsCapture && !move.IsPromotion;
-				if (notPV && !inCheck && isQuiet && depth <= 3 && movesPlayed >= depth * 10)
-					break;
-				if (canFPrune && isQuiet)
+				// Late move Pruning
+				/* Late Move Pruning
+				 * If this node does not seem promising and the depth is low enough
+				 * We stop searching if we've played a certain number of depth dependent moves
+				 * Most top engines use depth <= 8 and movesPlayed >= 3 + depth * depth / (improving ? 2 : 1) as the canonical formula
+				 * But this formula didn't work for my challenge engine
+				 */
+				// Futility Pruning
+				/* If our static evaluation is below alpha by a significant margin, we stop searching after all tactical moves are searched
+				 */
+				if (notPV && !inCheck && isQuiet && depth <= 3 && movesPlayed >= depth * 10 || canFPrune && isQuiet)
 					break;
 
 				board.MakeMove(move);

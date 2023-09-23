@@ -1,4 +1,4 @@
-﻿#define UCI
+﻿//#define UCI
 
 using ChessChallenge.API;
 using System;
@@ -179,13 +179,9 @@ public class MyBot : IChessBot
 			// loop through all pieces
 			for (; it < 6; it++)
 				// loop through side to move(1 = white, 0 = black)
-				for (int stm = 2; --stm >= 0;)
-				{
-					ulong pieceBB = board.GetPieceBitboard((PieceType)it + 1, stm == 1);
-
-
+				for (int stm = 2; --stm >= 0; evalMG *= -1, evalEG *= -1)
 					// loop through bit indices in pieceBB
-					while (pieceBB != 0)
+					for (ulong pieceBB = board.GetPieceBitboard((PieceType)it + 1, stm == 1); pieceBB != 0;)
 					{
 						// get the square, and flip it's y value if stm is white(piece square tables are black relative)
 						sq = ClearAndGetIndexOfLSB(ref pieceBB) ^ stm * 0b111000;
@@ -210,9 +206,6 @@ public class MyBot : IChessBot
 							evalEG += 51;
 						}
 					}
-					evalMG *= -1;
-					evalEG *= -1;
-				}
 			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
 			int staticEval = 8 + (evalMG * phase + evalEG * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24),
 				bestScore = -32000,
