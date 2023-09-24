@@ -190,7 +190,7 @@ public class MyBot : IChessBot
 						// get the square, and flip it's y value if stm is white(piece square tables are black relative)
 						sq = ClearAndGetIndexOfLSB(ref pieceBB) ^ stm * 0b111000;
 						// add the packed piece square table and material values
-						eval += PSQT[sq * 8 + it] + new [] { 4980775, 10485894, 13697270, 26935673, 47776586, 0 }[it];
+						eval += PSQT[sq * 8 + it] + new[] { 4980775, 10485894, 13697270, 26935673, 47776586, 0 }[it];
 						// add the phase
 						phase += 17480 >> 3 * it & 7;
 						// bitwise operations are used to save tokens
@@ -205,6 +205,7 @@ public class MyBot : IChessBot
 						if (it == 2 && pieceBB != 0)
 							eval += 3538958;
 
+						// doubled pawn
 						if (it == 0 && (pieceBB & 0x0101010101010101u << sq % 8) != 0)
 							eval -= 1703947;
 					}
@@ -291,7 +292,7 @@ public class MyBot : IChessBot
 					2000000000 - history[ply & 1, move.RawValue & 4095];
 
 			// sort moves
-			MemoryExtensions.Sort(moveScores, moves);
+			moveScores.Sort(moves);
 
 			Move bestMove = default;
 			ttType = 1;
