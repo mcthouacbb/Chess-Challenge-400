@@ -8,7 +8,7 @@ public class MyBotOld : IChessBot
 	private Move bestMoveRoot;
 
 	// put the delta here to make c# shut up about unitialized variables
-	private int nodes, phase, eval, sq, it, psqtIdx, delta;
+	private int nodes, phase, eval, sq, it, delta;
 
 	// first index 0-1
 	//     0 = middlegame
@@ -60,7 +60,7 @@ public class MyBotOld : IChessBot
 		// This saves tokens
 		var history = new int[2, 4096];
 		var killerMoves = new Move[128];
-		var ttEntries = new (ulong, int, ushort, byte, byte)[8388608];
+		var ttEntries = new (ulong, Move, short, byte, byte)[8388608];
 
 
 		for (int depth = 1, alpha = -64000, beta = 64000; ; delta *= 2)
@@ -125,11 +125,11 @@ public class MyBotOld : IChessBot
 
 			bool notPV = beta - alpha == 1, isQSearch = depth <= 0, canFPrune = false;
 
-			var (ttKey, ttScore, ttMove, ttDepth, ttType) = ttEntries[board.ZobristKey % 8388608];
+			var (ttKey, ttMove, ttScore, ttDepth, ttType) = ttEntries[board.ZobristKey % 8388608];
 
 			// tt cutoffs
 			// ttType stuff is a token optimization from cj
-			if (notPV && ttKey == board.ZobristKey && ttDepth >= depth && (ttScore >= beta ? ttType > 1 : ttType < 3))
+			if (ttKey == board.ZobristKey && notPV && ttDepth >= depth && (ttScore >= beta ? ttType > 1 : ttType < 3))
 				return ttScore;
 
 
@@ -237,7 +237,7 @@ public class MyBotOld : IChessBot
 			foreach (Move move in moves)
 				moveScores[it++] =
 					// tt move ordering, use the move in the transposition table as the first move
-					move.RawValue == ttMove ? -1000000 :
+					move == ttMove ? -1000000 :
 					// order noisy moves(moves that directly affect the material balance) by MVP MVV LVA
 					// (1) most valuable promotion
 					// (2) most valuable victim(captured piece)
@@ -252,7 +252,6 @@ public class MyBotOld : IChessBot
 			// sort moves
 			moveScores.Sort(moves);
 
-			Move bestMove = default;
 			ttType = 1;
 			foreach (Move move in moves)
 			{
@@ -311,7 +310,7 @@ public class MyBotOld : IChessBot
 						if (ply == 0)
 							bestMoveRoot = move;
 						alpha = it;
-						bestMove = move;
+						ttMove = move;
 						ttType = 2;
 					}
 					if (alpha >= beta)
@@ -319,8 +318,8 @@ public class MyBotOld : IChessBot
 						// on a fail high, we update the killer moves and history
 						if (!isQSearch && isQuiet)
 						{
-							killerMoves[ply] = bestMove;
-							history[ply & 1, bestMove.RawValue & 4095] += depth * depth;
+							killerMoves[ply] = ttMove;
+							history[ply & 1, ttMove.RawValue & 4095] += depth * depth;
 						}
 						ttType++;
 						break;
@@ -328,8 +327,9 @@ public class MyBotOld : IChessBot
 				}
 			}
 
+
 			// prevent negative depth from overflowing in transposition table
-			ttEntries[board.ZobristKey % 8388608] = (board.ZobristKey, bestScore, bestMove.RawValue, (byte)Math.Max(depth, 0), ttType);
+			ttEntries[board.ZobristKey % 8388608] = (board.ZobristKey, ttMove, (short)bestScore, (byte)Math.Max(depth, 0), ttType);
 
 			return bestScore;
 		}
