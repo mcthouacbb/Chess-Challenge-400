@@ -165,7 +165,7 @@ public class MyBot : IChessBot
 					return 0;
 			}
 
-			bool notPV = beta - alpha == 1, isQSearch = depth <= 0, canFPrune = false;
+			bool notPV = beta - alpha == 1, isQSearch = depth <= 0;
 
 			var (ttKey, ttMove, ttScore, ttDepth, ttType) = ttEntries[board.ZobristKey % 8388608];
 
@@ -260,9 +260,6 @@ public class MyBot : IChessBot
 					if (it >= beta)
 						return it;
 				}
-
-				// margin for futility pruning
-				canFPrune = depth <= 5 && staticEval + depth * 130 + 80 <= alpha;
 			}
 
 			// stack allocated moves are quite a bit faster
@@ -308,7 +305,7 @@ public class MyBot : IChessBot
 				// Futility Pruning
 				/* If our static evaluation is below alpha by a significant margin, we stop searching after all tactical moves are searched
 				 */
-				if (notPV && !inCheck && isQuiet && depth <= 5 && movesPlayed >= depth * 10 || canFPrune && isQuiet)
+				if (notPV && !inCheck && isQuiet && depth <= 5 && (movesPlayed >= depth * 10 || staticEval + depth * 130 + 80 <= alpha))
 					break;
 
 				board.MakeMove(move);
