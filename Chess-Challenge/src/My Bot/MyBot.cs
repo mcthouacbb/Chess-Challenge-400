@@ -1,4 +1,4 @@
-﻿//#define UCI
+﻿#define UCI
 
 using ChessChallenge.API;
 using System;
@@ -282,7 +282,7 @@ public class MyBot : IChessBot
 					// (2) most valuable victim(captured piece)
 					// (3) least valuable attacker(moving piece)
 					move.IsCapture || move.IsPromotion ?
-						(int)move.MovePieceType - 6 * (int)move.CapturePieceType - 36 * (int)move.PromotionPieceType :
+						(int)move.MovePieceType - 6 * (int)move.CapturePieceType :
 					// Use the killer moves from current ply to order first quiet moves
 					move == killerMoves[ply] ? 100 :
 					// Order the rest of the quiet moves by their history score
