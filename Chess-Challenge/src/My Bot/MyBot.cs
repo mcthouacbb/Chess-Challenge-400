@@ -57,7 +57,7 @@ public class MyBot : IChessBot
 	public Move Think(Board board, Timer timer)
 	{
 		bool shouldStop = false;
-
+		nodes = 0;
 		// We recreate the history every time to clear it
 		// This saves tokens
 		var history = new int[2, 4096];
@@ -152,7 +152,7 @@ public class MyBot : IChessBot
 				// check for time up
 				// the node check is to avoid checking the timer too often, which can degrade the search speed
 				// calling the timer is not a cheap operation
-				if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20 || shouldStop)
+				if ((++nodes & 2047) == 0 && timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20 || shouldStop)
 				{
 					shouldStop = true;
 					return alpha;
