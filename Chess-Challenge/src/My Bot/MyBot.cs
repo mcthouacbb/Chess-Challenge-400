@@ -268,9 +268,6 @@ public class MyBot : IChessBot
 			Span<Move> moves = stackalloc Move[256];
 			board.GetLegalMovesNonAlloc(ref moves, isQSearch);
 
-			if (moves.Length == 0 && !isQSearch)
-				return inCheck ? ply - 32000 : 0;
-
 			// move ordering with TT, MVV_LVA, killer moves, and history
 			// move scores are negated because sorting defaults to non-decreasing
 			Span<int> moveScores = stackalloc int[moves.Length];
@@ -289,6 +286,9 @@ public class MyBot : IChessBot
 					move == killerMoves[ply] ? 100 :
 					// Order the rest of the quiet moves by their history score
 					2000000000 - history[ply & 1, move.RawValue & 4095];
+
+			if (it == 0 && !isQSearch)
+				return inCheck ? ply - 32000 : 0;
 
 			// sort moves
 			moveScores.Sort(moves);
