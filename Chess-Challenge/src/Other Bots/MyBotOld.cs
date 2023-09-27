@@ -55,7 +55,7 @@ public class MyBotOld : IChessBot
 	public Move Think(Board board, Timer timer)
 	{
 		bool shouldStop = false;
-
+		nodes = 0;
 		// We recreate the history every time to clear it
 		// This saves tokens
 		var history = new int[2, 4096];
@@ -110,7 +110,7 @@ public class MyBotOld : IChessBot
 				// check for time up
 				// the node check is to avoid checking the timer too often, which can degrade the search speed
 				// calling the timer is not a cheap operation
-				if ((nodes++ & 2047) == 0 && timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20 || shouldStop)
+				if ((++nodes & 2047) == 0 && timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20 || shouldStop)
 				{
 					shouldStop = true;
 					return alpha;
@@ -240,7 +240,7 @@ public class MyBotOld : IChessBot
 					// (2) most valuable victim(captured piece)
 					// (3) least valuable attacker(moving piece)
 					move.IsCapture || move.IsPromotion ?
-						(int)move.MovePieceType - 6 * (int)move.CapturePieceType - 36 * (int)move.PromotionPieceType :
+						(int)move.MovePieceType - 6 * (int)move.CapturePieceType :
 					// Use the killer moves from current ply to order first quiet moves
 					move == killerMoves[ply] ? 100 :
 					// Order the rest of the quiet moves by their history score

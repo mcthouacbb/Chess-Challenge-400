@@ -326,7 +326,7 @@ public class MyBot : IChessBot
 				 * If the reduced depth search does not fail low, we research with the full depth
 				 * This will inevitably reduce late moves that are good, but the increase in search speed is well worth it.
 				 */
-				int reduction = movesPlayed >= (notPV ? 3 : 5) &&
+				int reduction = movesPlayed >= 4 &&
 					depth >= 3 &&
 					isQuiet ? 2 + depth / 8 + movesPlayed / 19 : 1;
 
