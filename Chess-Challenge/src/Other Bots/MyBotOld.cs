@@ -44,7 +44,7 @@ public class MyBotOld : IChessBot
 	}.SelectMany(decimal.GetBits).SelectMany(BitConverter.GetBytes).Chunk(2)/*.Select(a => {
 		Console.WriteLine($"{a[0]}, {a[1]}");
 		return a[0] + a[1] * 65536;
-	}).*/.Select(a => a[0] + a[1] * 65536).ToArray();
+	}).*/.Select(a => a[0] + a[1] * 65536).ToArray(), staticEvals = new int[256];
 
 	// Item1 = zobrist key
 	// Item2 = score
@@ -169,9 +169,11 @@ public class MyBotOld : IChessBot
 					}
 			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
 			// it hurts me not to use bitwise operations for this stuff, but it's done in the name of tokens
-			int staticEval = 8 + ((short)eval * phase + (eval + 0x8000 >> 16) * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24),
+			int staticEval = staticEvals[ply] = 8 + ((short)eval * phase + (eval + 0x8000 >> 16) * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24),
 				bestScore = -32000,
 				movesPlayed = 0;
+
+			int improving = Convert.ToInt32(!inCheck && ply > 1 && staticEval > staticEvals[ply - 2]);
 
 			if (isQSearch)
 			{
@@ -194,7 +196,7 @@ public class MyBotOld : IChessBot
 				 * but the increase in search speed is well worth that risk
 				 * The depth based margin and depth condition also ensure that rfp won't prune a node if we search far enough
 				 */
-				if (depth <= 6 && staticEval - depth * 62 >= beta)
+				if (depth <= 6 && staticEval - (depth - improving) * 80 >= beta)
 					return staticEval;
 
 				// null move pruning
@@ -224,9 +226,6 @@ public class MyBotOld : IChessBot
 			Span<Move> moves = stackalloc Move[256];
 			board.GetLegalMovesNonAlloc(ref moves, isQSearch);
 
-			if (moves.Length == 0 && !isQSearch)
-				return inCheck ? ply - 32000 : 0;
-
 			// move ordering with TT, MVV_LVA, killer moves, and history
 			// move scores are negated because sorting defaults to non-decreasing
 			Span<int> moveScores = stackalloc int[moves.Length];
@@ -245,6 +244,9 @@ public class MyBotOld : IChessBot
 					move == killerMoves[ply] ? 100 :
 					// Order the rest of the quiet moves by their history score
 					2000000000 - history[ply & 1, move.RawValue & 4095];
+
+			if (it == 0 && !isQSearch)
+				return inCheck ? ply - 32000 : 0;
 
 			// sort moves
 			moveScores.Sort(moves);
@@ -284,7 +286,7 @@ public class MyBotOld : IChessBot
 				 * If the reduced depth search does not fail low, we research with the full depth
 				 * This will inevitably reduce late moves that are good, but the increase in search speed is well worth it.
 				 */
-				int reduction = movesPlayed >= (notPV ? 3 : 5) &&
+				int reduction = movesPlayed >= 4 &&
 					depth >= 3 &&
 					isQuiet ? 2 + depth / 8 + movesPlayed / 19 : 1;
 
