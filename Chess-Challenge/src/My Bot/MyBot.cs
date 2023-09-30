@@ -165,12 +165,12 @@ public class MyBot : IChessBot
 			}
 
 			bool notPV = beta - alpha == 1, isQSearch = depth <= 0;
-
-			var (ttKey, ttMove, ttScore, ttDepth, ttType) = ttEntries[board.ZobristKey % 8388608];
+			ulong zkey = board.ZobristKey;
+			var (ttKey, ttMove, ttScore, ttDepth, ttType) = ttEntries[zkey % 8388608];
 
 			// tt cutoffs
 			// ttType stuff is a token optimization from cj
-			if (ttKey == board.ZobristKey && notPV && ttDepth >= depth && (ttScore >= beta ? ttType > 1 : ttType < 3))
+			if (ttKey == zkey && notPV && ttDepth >= depth && (ttScore >= beta ? ttType > 1 : ttType < 3))
 				return ttScore;
 
 
@@ -204,7 +204,7 @@ public class MyBot : IChessBot
 						if (it == 2 && pieceBB != 0)
 							eval += 3407886;
 
-						// doubled pawn
+						// rook on semi open and open file
 						if (it == 3 && (board.GetPieceBitboard(PieceType.Pawn, stm == 1) & 0x0101010101010101u << sq % 8) == 0)
 							eval += 655380;
 					}
@@ -334,6 +334,7 @@ public class MyBot : IChessBot
 				if (movesPlayed++ == 0 || isQSearch || LocalSearch(alpha + 1, reduction) > alpha && reduction > 1 | !notPV)
 					LocalSearch(beta);
 
+
 				board.UndoMove(move);
 
 				// return early if time is up
@@ -361,15 +362,16 @@ public class MyBot : IChessBot
 							killerMoves[ply] = ttMove;
 							history[ply & 1, ttMove.RawValue & 4095] += depth * depth;
 						}
+						// increment ttType to set to lowerBound
+						// I got the idea from jw, but Tyrant said that it originated from Toanth
 						ttType++;
 						break;
 					}
 				}
 			}
 
-
-			// prevent negative depth from overflowing in transposition table
-			ttEntries[board.ZobristKey % 8388608] = (board.ZobristKey, ttMove, (short)bestScore, (byte)Math.Max(depth, 0), ttType);
+			// prevent negative depth from overflowing in transposition table for qsearch
+			ttEntries[zkey % 8388608] = (zkey, ttMove, (short)bestScore, (byte)Math.Max(depth, 0), ttType);
 
 			return bestScore;
 		}
