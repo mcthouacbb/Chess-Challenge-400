@@ -148,15 +148,6 @@ public class MyBot : IChessBot
 				if (inCheck)
 					depth++;
 
-				// check for time up
-				// the node check is to avoid checking the timer too often, which can degrade the search speed
-				// calling the timer is not a cheap operation
-				if ((++nodes & 2047) == 0 && timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20 || shouldStop)
-				{
-					shouldStop = true;
-					return alpha;
-				}
-
 				// check for drawn position
 				// insuf material is not important and doesn't gain much elo
 				// TODO: 50 mr probably isn't very important either, try removing it
@@ -295,6 +286,18 @@ public class MyBot : IChessBot
 			ttType = 1;
 			foreach (Move move in moves)
 			{
+				// check for time up
+				// the node check is to avoid checking the timer too often, which can degrade the search speed
+				// calling the timer is not a cheap operation
+
+				// we return alpha to prevent the pv from being changed after time is up
+				// this allows for partial search results to be used(which saves tokens)(it might also gain elo but I'm not sure)
+				if ((++nodes & 2047) == 0 && timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20 || shouldStop)
+				{
+					shouldStop = true;
+					return alpha;
+				}
+
 				bool isQuiet = !move.IsCapture && !move.IsPromotion;
 				// Late move Pruning
 				/* Late Move Pruning
@@ -336,10 +339,6 @@ public class MyBot : IChessBot
 
 
 				board.UndoMove(move);
-
-				// return early if time is up
-				if (shouldStop)
-					return alpha;
 
 				// update the best score
 				if (it > bestScore)
