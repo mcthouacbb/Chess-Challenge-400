@@ -121,12 +121,6 @@ public class MyBot : IChessBot
 				alpha = eval - delta;
 				beta = eval + delta;
 			}
-
-			// if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
-			//if (shouldStop || timer.MillisecondsElapsedThisTurn > millisAlloced / 2)
-			//break;
-			//Console.WriteLine(nodes);
-			//Console.ForegroundColor = ConsoleColor.Green;
 		}
 		// this utilizes partial search results
 		return bestMoveRoot;
@@ -200,12 +194,10 @@ public class MyBot : IChessBot
 							eval += 655380;
 					}
 			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
-			// it hurts me not to use bitwise operations for this stuff, but it's done in the name of tokens
 			int staticEval = staticEvals[ply] = 8 + ((short)eval * phase + (eval + 0x8000 >> 16) * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24),
 				bestScore = -32000,
-				movesPlayed = 0;
-
-			int improving = Convert.ToInt32(!inCheck && ply > 1 && staticEval > staticEvals[ply - 2]);
+				movesPlayed = 0,
+				improving = Convert.ToInt32(!inCheck && ply > 1 && staticEval > staticEvals[ply - 2]);
 
 			if (isQSearch)
 			{
@@ -263,19 +255,20 @@ public class MyBot : IChessBot
 			Span<int> moveScores = stackalloc int[moves.Length];
 			it = 0;
 			foreach (Move move in moves)
-				moveScores[it++] =
+				moveScores[it++] = -(
 					// tt move ordering, use the move in the transposition table as the first move
-					move == ttMove ? -1000000 :
+					move == ttMove ? 2000000000 :
 					// order noisy moves(moves that directly affect the material balance) by MVP MVV LVA
 					// (1) most valuable promotion
 					// (2) most valuable victim(captured piece)
 					// (3) least valuable attacker(moving piece)
 					move.IsCapture || move.IsPromotion ?
-						(int)move.MovePieceType - 6 * (int)move.CapturePieceType :
+						200000000 * (int)move.CapturePieceType - (int)move.MovePieceType :
 					// Use the killer moves from current ply to order first quiet moves
-					move == killerMoves[ply] ? 100 :
+					move == killerMoves[ply] ? 100000000 :
 					// Order the rest of the quiet moves by their history score
-					2000000000 - history[ply & 1, move.RawValue & 4095];
+					history[ply & 1, move.RawValue & 4095]
+				);
 
 			if (it == 0 && !isQSearch)
 				return inCheck ? ply - 32000 : 0;
@@ -292,7 +285,7 @@ public class MyBot : IChessBot
 
 				// we return alpha to prevent the pv from being changed after time is up
 				// this allows for partial search results to be used(which saves tokens)(it might also gain elo but I'm not sure)
-				if ((++nodes & 2047) == 0 && timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20 || shouldStop)
+				if (++nodes % 2048 == 0 && timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 20 || shouldStop)
 				{
 					shouldStop = true;
 					return alpha;
@@ -309,7 +302,7 @@ public class MyBot : IChessBot
 				// Futility Pruning
 				/* If our static evaluation is below alpha by a significant margin, we stop searching after all tactical moves are searched
 				 */
-				if (notPV && !inCheck && isQuiet && depth <= 5 && (movesPlayed >= depth * 10 || staticEval + (depth + improving) * 130 - 50 <= alpha))
+				if (notPV && !inCheck && isQuiet && depth <= 5 && movesPlayed >= depth * 10 | staticEval + (depth + improving) * 130 - 50 <= alpha)
 					break;
 
 				board.MakeMove(move);
@@ -342,30 +335,28 @@ public class MyBot : IChessBot
 
 				// update the best score
 				if (it > bestScore)
-				{
 					bestScore = it;
 
-					if (it > alpha)
+				if (it > alpha)
+				{
+					if (ply == 0)
+						bestMoveRoot = move;
+					alpha = it;
+					ttMove = move;
+					ttType = 2;
+				}
+				if (alpha >= beta)
+				{
+					// on a fail high, we update the killer moves and history
+					if (!isQSearch && isQuiet)
 					{
-						if (ply == 0)
-							bestMoveRoot = move;
-						alpha = it;
-						ttMove = move;
-						ttType = 2;
+						killerMoves[ply] = ttMove;
+						history[ply & 1, ttMove.RawValue & 4095] += depth * depth;
 					}
-					if (alpha >= beta)
-					{
-						// on a fail high, we update the killer moves and history
-						if (!isQSearch && isQuiet)
-						{
-							killerMoves[ply] = ttMove;
-							history[ply & 1, ttMove.RawValue & 4095] += depth * depth;
-						}
-						// increment ttType to set to lowerBound
-						// I got the idea from jw, but Tyrant said that it originated from Toanth
-						ttType++;
-						break;
-					}
+					// increment ttType to set to lowerBound
+					// I got the idea from jw, but Tyrant said that it originated from Toanth
+					ttType++;
+					break;
 				}
 			}
 
