@@ -9,7 +9,7 @@ public class MyBot : IChessBot
 	private Move bestMoveRoot;
 
 	// put the delta here to make c# shut up about unitialized variables
-	private int nodes, phase, eval, sq, it, delta;
+	private int nodes, phase, packedEval, sq, it, delta;
 
 	// first index 0-1
 	//     0 = middlegame
@@ -74,20 +74,20 @@ public class MyBot : IChessBot
 			int startTime = timer.MillisecondsElapsedThisTurn;
 			for (int depth = 1, alpha = -64000, beta = 64000; depth <= benchDepth; delta *= 2)
 			{
-				int eval = Search(depth, alpha, beta, false, 0);
+				it = Search(depth, alpha, beta, false, 0);
 				//Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {eval}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
 				//Console.WriteLine($"Timer: {timer.MillisecondsElapsedThisTurn}, t: {timer.MillisecondsRemaining / 15}");
 				if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 50)
 					break;
-				if (eval <= alpha)
+				if (it <= alpha)
 					alpha -= delta;
-				else if (eval >= beta)
+				else if (it >= beta)
 					beta += delta;
 				else
 				{
 					delta = ++depth <= 6 ? 64000 : 15;
-					alpha = eval - delta;
-					beta = eval + delta;
+					alpha = it - delta;
+					beta = it + delta;
 				}
 
 				// if this depth takes up more than 50% of allocated time, there is a good chance that the next search won't finish.
@@ -106,20 +106,20 @@ public class MyBot : IChessBot
 
 		for (int depth = 1, alpha = -64000, beta = 64000;; delta *= 2)
 		{
-			int eval = Search(depth, alpha, beta, false, 0);
+			it = Search(depth, alpha, beta, false, 0);
 			//Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {eval}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
 			//Console.WriteLine($"Timer: {timer.MillisecondsElapsedThisTurn}, t: {timer.MillisecondsRemaining / 15}");
 			if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 50)
 				break;
-			if (eval <= alpha)
+			if (it <= alpha)
 				alpha -= delta;
-			else if (eval >= beta)
+			else if (it >= beta)
 				beta += delta;
 			else
 			{
 				delta = ++depth <= 6 ? 64000 : 15;
-				alpha = eval - delta;
-				beta = eval + delta;
+				alpha = it - delta;
+				beta = it + delta;
 			}
 		}
 		// this utilizes partial search results
@@ -159,7 +159,7 @@ public class MyBot : IChessBot
 				return ttScore;
 
 
-			phase = eval = it = 0;
+			phase = packedEval = it = 0;
 
 			// incremented on line 267
 			// evaluation based on material and piece square tables
@@ -167,14 +167,14 @@ public class MyBot : IChessBot
 			// uses packed evaluation trick to save tokens(thanks to
 			for (; it < 6; it++)
 				// loop through side to move(1 = white, 0 = black)
-				for (int stm = 2; --stm >= 0; eval = -eval)
+				for (int stm = 2; --stm >= 0; packedEval = -packedEval)
 					// loop through bit indices in pieceBB
 					for (ulong pieceBB = board.GetPieceBitboard((PieceType)it + 1, stm == 1); pieceBB != 0;)
 					{
 						// get the square, and flip it's y value if stm is white(piece square tables are black relative)
 						sq = BitboardHelper.ClearAndGetIndexOfLSB(ref pieceBB) ^ stm * 0b111000;
 						// add the packed piece square table and material values
-						eval += PSQT[sq * 8 + it] + new[] { 5111853, 11075723, 14352633, 27459969, 49611616, 0 }[it];
+						packedEval += PSQT[sq * 8 + it] + new[] { 5111853, 11075723, 14352633, 27459969, 49611616, 0 }[it];
 						// add the phase
 						phase += 17480 >> 3 * it & 7;
 						// bitwise operations are used to save tokens
@@ -187,14 +187,14 @@ public class MyBot : IChessBot
 						// but in practice, this has no effect on playing strength. The added bonus to a
 						// bishop promotion is completely dwarfed by the value of a queen promotion
 						if (it == 2 && pieceBB != 0)
-							eval += 3407886;
+							packedEval += 3407886;
 
 						// rook on semi open and open file
 						if (it == 3 && (board.GetPieceBitboard(PieceType.Pawn, stm == 1) & 0x0101010101010101u << sq % 8) == 0)
-							eval += 655380;
+							packedEval += 655380;
 					}
 			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
-			int staticEval = staticEvals[ply] = 8 + ((short)eval * phase + (eval + 0x8000 >> 16) * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24),
+			int staticEval = staticEvals[ply] = 8 + ((short)packedEval * phase + (packedEval + 0x8000 >> 16) * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24),
 				bestScore = -32000,
 				movesPlayed = 0,
 				improving = Convert.ToInt32(!inCheck && ply > 1 && staticEval > staticEvals[ply - 2]);
