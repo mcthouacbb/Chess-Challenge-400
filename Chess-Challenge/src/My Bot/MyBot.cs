@@ -110,7 +110,8 @@ public class MyBot : IChessBot
 			//Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {eval}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
 			//Console.WriteLine($"Timer: {timer.MillisecondsElapsedThisTurn}, t: {timer.MillisecondsRemaining / 15}");
 			if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 50)
-				break;
+				// utilizes partial search results
+				return bestMoveRoot;
 			if (it <= alpha)
 				alpha -= delta;
 			else if (it >= beta)
@@ -122,8 +123,9 @@ public class MyBot : IChessBot
 				beta = it + delta;
 			}
 		}
-		// this utilizes partial search results
-		return bestMoveRoot;
+		// For loop cannot get to here
+
+
 
 		// use local function to access board and timer with no token overhead
 		// idea from antares
@@ -302,7 +304,7 @@ public class MyBot : IChessBot
 				// Futility Pruning
 				/* If our static evaluation is below alpha by a significant margin, we stop searching after all tactical moves are searched
 				 */
-				if (notPV && !inCheck && isQuiet && depth <= 5 && movesPlayed >= depth * 10 | staticEval + (depth + improving) * 130 - 50 <= alpha)
+				if (notPV && !inCheck && isQuiet && depth <= 5 && movesPlayed >= depth * (9 + 2 * improving) | staticEval + (depth + improving) * 130 - 50 <= alpha)
 					break;
 
 				board.MakeMove(move);
