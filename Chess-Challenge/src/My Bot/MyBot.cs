@@ -316,8 +316,7 @@ public class MyBot : IChessBot
 				{
 					board.ForceSkipTurn();
 					// it isn't used anymore so we can reuse it
-
-					//
+					// we search with a window of [-beta, -beta + 1], because we only care if the score is above beta
 					LocalSearch(beta, 2 + depth / 3, false);
 					board.UndoSkipTurn();
 					if (it >= beta)
