@@ -262,7 +262,7 @@ public class MyBotOld : IChessBot
 				// Futility Pruning
 				/* If our static evaluation is below alpha by a significant margin, we stop searching after all tactical moves are searched
 				 */
-				if (notPV && !inCheck && isQuiet && depth <= 5 && movesPlayed >= depth * 10 | staticEval + (depth + improving) * 130 - 50 <= alpha)
+				if (notPV && !inCheck && isQuiet && depth <= 5 && movesPlayed >= depth * (9 + 2 * improving) | staticEval + (depth + improving) * 130 - 50 <= alpha)
 					break;
 
 				board.MakeMove(move);
