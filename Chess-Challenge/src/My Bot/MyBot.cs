@@ -1,4 +1,6 @@
-﻿// stuff for the uci impl in my engine
+﻿// stuff for the uci impl in my version of the challenge gui
+// link to the repository for my bot(Which will be open sourced after submissions)
+// https://github.com/mcthouacbb/Chess-Challenge
 //#define UCI
 
 /* Thank you to all the following people for helping me in my chess programming journey

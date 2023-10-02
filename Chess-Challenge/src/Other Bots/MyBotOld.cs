@@ -1,28 +1,74 @@
-﻿using ChessChallenge.API;
+﻿// stuff for the uci impl in my version of the challenge gui
+// link to the repository for my bot(Which will be open sourced after submissions)
+// https://github.com/mcthouacbb/Chess-Challenge
+//#define UCI
+
+/* Thank you to all the following people for helping me in my chess programming journey
+ * I would not have made it this far without them
+ * Ciekce. author of Stormphrax https://github.com/Ciekce/Stormphrax/tree/main/src
+ * Antares, author of Altair and Antares https://github.com/alex2262/AltairChessEngine/
+ * JW, author of Akimbo https://github.com/jw1912/akimbo
+ * cj5716, a stockfish and 4ku contributor https://github.com/cj5716
+ * Tyrant, a fellow competitor https://github.com/tyrant7
+ * Toanth, another fellow competitor https://github.com/toanth
+ * There are probably more that I'm missing
+ */
+
+/* FEATURES
+ * - Evaluation
+ *     - Material
+ *     - Piece Square Tables
+ *     - Bishop Pair
+ *     - Rook on semi open and open file
+ *     - Packed evaluation
+ *     - "Compressed" piece square tables with decimals and LINQ
+ * - Search
+ *     - Iterative deepening
+ *     - Hard-soft time management
+ *     - Aspiration windows
+ *     - Principal variation search
+ *     - Quiescence Search
+ *     - Fail soft Alpha-Beta Pruning
+ *     - Transposition table
+ *         - tt cutoffs
+ *         - tt move ordering
+ *     - Move Ordering
+ *         - tt move ordering
+ *         - mvv lva
+ *         - killer moves
+ *         - history heuristic
+ *     - Selectivity
+ *         - Check extension
+ *         - Reverse Futility Pruning
+ *         - Null Move Pruning
+ *         - Late Move Pruning
+ *         - Futility Pruning
+ *         - Late Move Reductions
+ *     - Misc
+ *         - Improving heuristic
+ *         - Partial search results
+ *         - Stack allocated moves
+ */
+
+using ChessChallenge.API;
 using System;
 using System.Linq;
 
 public class MyBotOld : IChessBot
 {
+	// the best move from the current search
 	private Move bestMoveRoot;
 
 	// put the delta here to make c# shut up about unitialized variables
+	// bunch of variables
+	// "it" is used a ton
 	private int nodes, phase, packedEval, sq, it, delta;
 
-	// first index 0-1
-	//     0 = middlegame
-	//     1 = endgame
-	// second index 0-5
-	//     0 = pawn
-	//     1 = knight
-	//     2 = bishop
-	//     3 = rook
-	//     4 = queen
-	//     5 = king
-	// third index 0-63
-	//     square
-	// index calculation
-	//     firstIndex * 384 + secondIndex * 64 + thirdIndex
+	// An array of piece square scores
+	// indexed by 8 * piece + square (piece should be 0-5) for (pawn - king)
+	// We use an 8 so we don't have to ignore the extra byte at the end of each decimal
+	// There is only one entry because each entry stores a packed middlegame endgame evaluation
+	// https://minuskelvin.net/chesswiki/content/packed-eval.html
 	int[] PSQT = new[] {
 		162378573907163608468443463m, 12509171266076764537038065991m, 14089261551695647595105571143m, 22351037433687643931806486855m,
 		19003484170494650816742838599m, 21187980179940948218151653703m, 19975300079112888281614799175m, 2687811070247606617347215687m,
@@ -40,16 +86,9 @@ public class MyBotOld : IChessBot
 		26386289483102799332794043926m, 24240356575610778868202604331m, 19647543568190187961459541564m, 15012441751322451226075137041m,
 		5429531826221284093706719559m, 8247537745937350384847180103m, 12552508570564778792259965255m, 18938017191840019227158860103m,
 		11892444590785613558071447879m, 18349303023333149394129736007m, 11313293546591776380314865991m, 4196304726628143172615622983m
-	}.SelectMany(decimal.GetBits).SelectMany(BitConverter.GetBytes).Chunk(2)/*.Select(a => {
-		Console.WriteLine($"{a[0]}, {a[1]}");
-		return a[0] + a[1] * 65536;
-	}).*/.Select(a => a[0] + a[1] * 65536).ToArray(), staticEvals = new int[256];
+	}.SelectMany(decimal.GetBits).SelectMany(BitConverter.GetBytes).Chunk(2).Select(a => a[0] + a[1] * 65536).ToArray(),
+		staticEvals = new int[256];
 
-	// Item1 = zobrist key
-	// Item2 = score
-	// Item3 = bestMove(ushort, move.RawValue)
-	// Item4 = depth
-	// Item5 = flag, 0 = exact, 1 = upper bound, 2 = lower bound
 
 	public Move Think(Board board, Timer timer)
 	{
@@ -57,31 +96,49 @@ public class MyBotOld : IChessBot
 		nodes = 0;
 		// We recreate the history every time to clear it
 		// This saves tokens
+		// history indexed by sideToMove, fromTo
 		var history = new int[2, 4096];
+		// killer moves
 		var killerMoves = new Move[128];
+		// Item1 = zobrist key
+		// Item3 = bestMove
+		// Item2 = score(as a short)
+		// Item4 = depth
+		// Item5 = flag, 1 = upper bound, 2 = exact, 3 = lower bound
 		var ttEntries = new (ulong, Move, short, byte, byte)[8388608];
 
 
+		// iterative deepening and aspiration windows loop
 		for (int depth = 1, alpha = -64000, beta = 64000; ; delta *= 2)
 		{
 			it = Search(depth, alpha, beta, false, 0);
-			//Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {eval}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
-			//Console.WriteLine($"Timer: {timer.MillisecondsElapsedThisTurn}, t: {timer.MillisecondsRemaining / 15}");
+
+			// uncomment for some extra info
+			// Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {it}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
+
+			// return a move on soft-timeout
 			if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 50)
 				// utilizes partial search results
+				// fail-high and in-window results can be accepted, but fail-low results cannot be used
 				return bestMoveRoot;
 			if (it <= alpha)
+				// fail low, widen alpha
 				alpha -= delta;
 			else if (it >= beta)
+				// fail high, widen beta
 				beta += delta;
 			else
 			{
+				// in window, increase depth and reset delta
+				// at low depths, the delta is set to a large number, and aspiration windows is disabled
+				// at higher depths, we center the search window around the previous evaluation
 				delta = ++depth <= 6 ? 64000 : 15;
 				alpha = it - delta;
 				beta = it + delta;
 			}
 		}
 		// For loop cannot get to here
+
 
 
 
@@ -103,28 +160,37 @@ public class MyBotOld : IChessBot
 					depth++;
 
 				// check for drawn position
-				// insuf material is not important and doesn't gain much elo
-				// TODO: 50 mr probably isn't very important either, try removing it
+				// insufficient material is not important and doesn't gain much elo(not tested), so we don't check it
 				if (board.IsRepeatedPosition() || board.FiftyMoveCounter >= 100)
 					return 0;
 			}
 
-			bool notPV = beta - alpha == 1, isQSearch = depth <= 0;
+			bool notPV = beta - alpha == 1,
+				// qsearch is in the same function, saves a ton of tokens
+				isQSearch = depth <= 0;
+
+			// transposition table probing
 			ulong zkey = board.ZobristKey;
 			var (ttKey, ttMove, ttScore, ttDepth, ttType) = ttEntries[zkey % 8388608];
 
-			// tt cutoffs
+			// tt cutoffs, return the score stored in the tt if we can
 			// ttType stuff is a token optimization from cj
 			if (ttKey == zkey && notPV && ttDepth >= depth && (ttScore >= beta ? ttType > 1 : ttType < 3))
 				return ttScore;
 
 
+			// initialize evaluation stuff
 			phase = packedEval = it = 0;
 
-			// incremented on line 267
-			// evaluation based on material and piece square tables
+			// evaluation based on material, piece square tables, bishop pair, and rook on semi-open and open-file
+			// I got the idea to use bishop pair and rook on semi-open file from Toanth and Tyrant respectively
+			// However, all values were tuned independently by me using a terribly written tuner and a combination of
+			// lichess-big3 and zurichess dataset
+
+			// credit to tyrant for a lot of token saves here
+
 			// loop through all pieces
-			// uses packed evaluation trick to save tokens(thanks to
+			// uses packed evaluation trick to save tokens(thanks to MinusKelvin for some help with that)
 			for (; it < 6; it++)
 				// loop through side to move(1 = white, 0 = black)
 				for (int stm = 2; --stm >= 0; packedEval = -packedEval)
@@ -142,10 +208,11 @@ public class MyBotOld : IChessBot
 						// bishop pair
 						// putting inside the bit loop was Tyrants idea
 
-						// this technically isn't the same as an actual bishop pair evaluation, because if
-						// there are more than 2 bishops on the board, it will add the bishop pair bonus twice
-						// but in practice, this has no effect on playing strength. The added bonus to a
-						// bishop promotion is completely dwarfed by the value of a queen promotion
+						/* this technically isn't the same as an actual bishop pair evaluation, because if
+						 * there are more than 2 bishops on the board, it will add the bishop pair bonus twice
+						 * but in practice, this has no effect on playing strength. The added bonus to a
+						 * bishop promotion is completely dwarfed by the value of a queen promotion
+						 */
 						if (it == 2 && pieceBB != 0)
 							packedEval += 3407886;
 
@@ -153,10 +220,18 @@ public class MyBotOld : IChessBot
 						if (it == 3 && (board.GetPieceBitboard(PieceType.Pawn, stm == 1) & 0x0101010101010101u << sq % 8) == 0)
 							packedEval += 655380;
 					}
-			// TODO: check if multiplying endgame eval by (100 - halfMoveClock) / 100 helps with avoiding endgame draws
+
+			// combine middlegame and endgame evals according to phase and add 8 for tempo bonus
 			int staticEval = staticEvals[ply] = 8 + ((short)packedEval * phase + (packedEval + 0x8000 >> 16) * (24 - phase)) / (board.IsWhiteToMove ? 24 : -24),
+				// the best score in a fail-soft alpha-beta search
 				bestScore = -32000,
+				// the number of moves played so far
 				movesPlayed = 0,
+				// the improving heuristic
+				/* When the static evaluation of the current position is greater than the one 2 plies ago
+				 * We do more aggressive fail-high pruning(reverse futility pruning, null move pruning)
+				 * and less aggressive fail-low pruning(late move reductions, late move pruning, futility pruning)
+				 */
 				improving = Convert.ToInt32(!inCheck && ply > 1 && staticEval > staticEvals[ply - 2]);
 
 			if (isQSearch)
@@ -185,20 +260,24 @@ public class MyBotOld : IChessBot
 
 				// null move pruning
 				/*
-				 * Make a "null move" and see if we can get a fail high
-				 * If we make a null move, we are effectively allowing the opponent to make 2 moves in a row
-				 * If the opponent makes 2 moves in a row and still cannot bring the score below beta
-				 * Then somewhere up the tree
+				 * Make a "null move" and do a reduced depth search
+				 * If the reduced depth search fails high, we accept the score
+				 * The idea is that
+				 * making a null move effectively allows the opponent to make 2 moves in a row
+				 * and if the search still fails high after the opponent gets 2 moves in a row
+				 * then the opponent must have made a very bad move somewhere up the search tree
 				 * Disabled if:
 				 *     - In Check, position after null move will be illegal
 				 *     - Null move was done last move. Double null move just burns 2 plies for nothing
 				 *     - Depth is too low for null move to be worth it
-				 *     - Only pawns left for side to move, zugzwang becomes extremely common
+				 *     - Very little non-pawn pieces left, zugzwang becomes very common(which is bad for null move pruning)
 				 */
 				if (doNull && depth >= 3 && phase > 2)
 				{
 					board.ForceSkipTurn();
 					// it isn't used anymore so we can reuse it
+
+					//
 					LocalSearch(beta, 2 + depth / 3, false);
 					board.UndoSkipTurn();
 					if (it >= beta)
@@ -216,12 +295,15 @@ public class MyBotOld : IChessBot
 			it = 0;
 			foreach (Move move in moves)
 				moveScores[it++] = -(
-					// tt move ordering, use the move in the transposition table as the first move
+					// tt move ordering, use the move in the transposition table as the first move(if it exists)
 					move == ttMove ? 2000000000 :
-					// order noisy moves(moves that directly affect the material balance) by MVP MVV LVA
-					// (1) most valuable promotion
-					// (2) most valuable victim(captured piece)
-					// (3) least valuable attacker(moving piece)
+					// order noisy moves(moves that directly affect the material balance) by MVV LVA
+					/* (1) most valuable victim(captured piece)
+					 * (2) least valuable aggressor/attacker(moving piece)
+					 * This ignores promotions that don't capture anything
+					 * but since they are very rare we can get
+					 * with a suboptimal ordering for them
+					 */
 					move.IsCapture || move.IsPromotion ?
 						200000000 * (int)move.CapturePieceType - (int)move.MovePieceType :
 					// Use the killer moves from current ply to order first quiet moves
@@ -230,12 +312,19 @@ public class MyBotOld : IChessBot
 					history[ply & 1, move.RawValue & 4095]
 				);
 
+			/*
+			 * Checkmate detection
+			 */
 			if (it == 0 && !isQSearch)
 				return inCheck ? ply - 32000 : 0;
 
 			// sort moves
+			/* It's usually better to sort the moves incrementally using a partial
+			 * selection sort, but this takes too many tokens for the challenge
+			 */
 			moveScores.Sort(moves);
 
+			// initialize ttType to an upper-bound(fail low)
 			ttType = 1;
 			foreach (Move move in moves)
 			{
@@ -260,8 +349,7 @@ public class MyBotOld : IChessBot
 				 * But this formula didn't work for my challenge engine
 				 */
 				// Futility Pruning
-				/* If our static evaluation is below alpha by a significant margin, we stop searching after all tactical moves are searched
-				 */
+				// If our static evaluation is below alpha by a significant margin, we stop searching after all tactical moves are searched
 				if (notPV && !inCheck && isQuiet && depth <= 5 && movesPlayed >= depth * (9 + 2 * improving) | staticEval + (depth + improving) * 130 - 50 <= alpha)
 					break;
 
@@ -287,6 +375,22 @@ public class MyBotOld : IChessBot
 					depth >= 3 &&
 					isQuiet ? 2 + depth / 8 + movesPlayed / 19 : 1;
 
+
+				/* 2 fold lmr + pvs
+				 * Equivalent to the following
+				 * if (movesPlayed++ == 0 || isQSearch)
+				 * {
+				 *     it = Search(depth - 1, -beta, -alpha, true, ply + 1)
+				 * }
+				 * else
+				 * {
+				 *     it = Search(depth - reduction, -alpha - 1, -alpha, true, ply + 1)
+				 *     if (it > alpha && (isPV || reduction > 1))
+				 *     {
+				 *         it = Search(depth - 1, -beta, -alpha, true, ply + 1);
+				 *     }
+				 * }
+				 */
 				if (movesPlayed++ == 0 || isQSearch || LocalSearch(alpha + 1, reduction) > alpha && reduction > 1 | !notPV)
 					LocalSearch(beta);
 
@@ -297,14 +401,19 @@ public class MyBotOld : IChessBot
 				if (it > bestScore)
 					bestScore = it;
 
+
+				// Alpha raise
 				if (it > alpha)
 				{
+					// At the root node we replace the best root move on an alpha raise
 					if (ply == 0)
 						bestMoveRoot = move;
+
 					alpha = it;
 					ttMove = move;
 					ttType = 2;
 				}
+				// Beta cutoff/Fail high
 				if (alpha >= beta)
 				{
 					// on a fail high, we update the killer moves and history
@@ -320,6 +429,11 @@ public class MyBotOld : IChessBot
 				}
 			}
 
+
+			// ttStore
+			/* Put the current position into the transposition table
+			 * An always replace scheme is used(which actually works quite well in practice)
+			 */
 			// prevent negative depth from overflowing in transposition table for qsearch
 			ttEntries[zkey % 8388608] = (zkey, ttMove, (short)bestScore, (byte)Math.Max(depth, 0), ttType);
 
