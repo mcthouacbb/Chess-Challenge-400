@@ -1,4 +1,5 @@
-﻿//#define UCI
+﻿// stuff for the uci impl in my engine
+//#define UCI
 
 /* Thank you to all the following people for helping me in my chess programming journey
  * I would not have made it this far without them
@@ -151,8 +152,7 @@ public class MyBot : IChessBot
 			it = Search(depth, alpha, beta, false, 0);
 
 			// uncomment for some extra info
-			//Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {eval}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
-			//Console.WriteLine($"Timer: {timer.MillisecondsElapsedThisTurn}");
+			// Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {it}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
 
 			// return a move on soft-timeout
 			if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 50)
