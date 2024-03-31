@@ -5,7 +5,7 @@
     },
     "UCI": {
       "commandName": "Project",
-      "commandLineArgs": "uci MyBot"
+      "commandLineArgs": "uci P4kBot"
     }
   }
 }

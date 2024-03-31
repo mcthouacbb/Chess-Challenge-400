@@ -63,19 +63,23 @@ namespace ChessChallenge.Application
 				var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
 				controller.StartNewGame(whiteType, blackType);
 			}
-            if (NextButtonInRow("Human vs P2kBot", ref buttonPos, spacing, buttonSize))
+            if (NextButtonInRow("Human vs P4kBot", ref buttonPos, spacing, buttonSize))
 			{
-				var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.P2kBot : ChallengeController.PlayerType.Human;
-				var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.P2kBot : ChallengeController.PlayerType.Human;
+				var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.P4kBot : ChallengeController.PlayerType.Human;
+				var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.P4kBot : ChallengeController.PlayerType.Human;
 				controller.StartNewGame(whiteType, blackType);
 			}
-			if (NextButtonInRow("Tier1Bot vs P2kBot", ref buttonPos, spacing, buttonSize))
+			if (NextButtonInRow("Tier1Bot vs P4kBot", ref buttonPos, spacing, buttonSize))
 			{
-				controller.StartNewBotMatch(ChallengeController.PlayerType.NegamaxBot, ChallengeController.PlayerType.P2kBot);
+				controller.StartNewBotMatch(ChallengeController.PlayerType.NegamaxBot, ChallengeController.PlayerType.P4kBot);
 			}
-			if (NextButtonInRow("EvilBot vs P2kBot", ref buttonPos, spacing, buttonSize))
+			if (NextButtonInRow("NOSPRTBot vs P4kBot", ref buttonPos, spacing, buttonSize))
 			{
-				controller.StartNewBotMatch(ChallengeController.PlayerType.EvilBot, ChallengeController.PlayerType.P2kBot);
+				controller.StartNewBotMatch(ChallengeController.PlayerType.NOSPRTBot, ChallengeController.PlayerType.P4kBot);
+			}
+			if (NextButtonInRow("EvilBot vs P4kBot", ref buttonPos, spacing, buttonSize))
+			{
+				controller.StartNewBotMatch(ChallengeController.PlayerType.EvilBot, ChallengeController.PlayerType.P4kBot);
 			}
 			if (NextButtonInRow("MyBot vs MyBot", ref buttonPos, spacing, buttonSize))
 			{

@@ -21,8 +21,10 @@ namespace ChessChallenge.Application
             MyBot,
             P2kBot,
             P2kBotOld,
+            P4kBot,
             EvilBot,
             MyBotOld,
+            NOSPRTBot,
             NegamaxBot,
             Negamax2Bot,
             Stockfish,
@@ -222,8 +224,10 @@ namespace ChessChallenge.Application
             {
                 PlayerType.MyBot => new ChessPlayer(new MyBot(), type, GameDurationMilliseconds),
                 PlayerType.P2kBot => new ChessPlayer(new P2kBot(), type, GameDurationMilliseconds),
-				PlayerType.P2kBotOld => new ChessPlayer(new P2kBotOld(), type, GameDurationMilliseconds),
-				PlayerType.EvilBot => new ChessPlayer(new EvilBot(), type, GameDurationMilliseconds),
+                PlayerType.P2kBotOld => new ChessPlayer(new P2kBotOld(), type, GameDurationMilliseconds),
+                PlayerType.P4kBot => new ChessPlayer(new P4kBot(), type, GameDurationMilliseconds),
+                PlayerType.NOSPRTBot => new ChessPlayer(new NOSPRTBot(), type, GameDurationMilliseconds),
+                PlayerType.EvilBot => new ChessPlayer(new EvilBot(), type, GameDurationMilliseconds),
                 PlayerType.MyBotOld => new ChessPlayer(new MyBotOld(), type, GameDurationMilliseconds),
                 PlayerType.NegamaxBot => new ChessPlayer(new NegamaxBasic(), type, GameDurationMilliseconds),
                 PlayerType.Negamax2Bot => new ChessPlayer(new Negamax2Bot(), type, GameDurationMilliseconds),
@@ -240,6 +244,8 @@ namespace ChessChallenge.Application
             {
                 PlayerType.MyBot => new MyBot(),
                 PlayerType.P2kBot => new P2kBot(),
+                PlayerType.P4kBot => new P4kBot(),
+                PlayerType.NOSPRTBot => new NOSPRTBot(),
                 PlayerType.EvilBot => new EvilBot(),
                 PlayerType.MyBotOld => new MyBotOld(),
                 PlayerType.P2kBotOld => new P2kBotOld(),
@@ -253,8 +259,8 @@ namespace ChessChallenge.Application
 
         static (int totalTokenCount, int debugTokenCount) GetTokenCount()
         {
-            string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "MyBot.cs");
-            //string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "p2kBot.cs");
+            //string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "MyBot.cs");
+            string path = Path.Combine(Directory.GetCurrentDirectory(), "src", "My Bot", "p4kBot.cs");
 
             using StreamReader reader = new(path);
             string txt = reader.ReadToEnd();
