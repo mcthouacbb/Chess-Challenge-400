@@ -69,9 +69,9 @@ namespace ChessChallenge.Application
 				var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.P4kBot : ChallengeController.PlayerType.Human;
 				controller.StartNewGame(whiteType, blackType);
 			}
-			if (NextButtonInRow("Tier1Bot vs P4kBot", ref buttonPos, spacing, buttonSize))
+			if (NextButtonInRow("P4kBot vs P4kBotOld", ref buttonPos, spacing, buttonSize))
 			{
-				controller.StartNewBotMatch(ChallengeController.PlayerType.NegamaxBot, ChallengeController.PlayerType.P4kBot);
+				controller.StartNewBotMatch(ChallengeController.PlayerType.P4kBot, ChallengeController.PlayerType.P4kBotOld);
 			}
 			if (NextButtonInRow("NOSPRTBot vs P4kBot", ref buttonPos, spacing, buttonSize))
 			{
