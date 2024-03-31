@@ -1,4 +1,4 @@
-﻿//#define UCI_OUTPUT
+﻿#define UCI_OUTPUT
 
 using ChessChallenge.API;
 using System.Linq;
@@ -23,7 +23,7 @@ public class P4kBot : IChessBot
 				depth /= 0;
 			// subtracting depth from bestScore handles prioritizing shorter mates
 			// bestScore will be set to eval in qsearch so this does not change anything for depth <= 0
-			var (bestScore, score, eval, key, qsearch) = (-30000 - depth, 0, board.GetLegalMoves().Length, board.ZobristKey % 16777216, depth <= 0);
+			var (notPV, first, bestScore, score, eval, key, qsearch) = (beta - alpha == 1, true, -30000 - depth, 0, board.GetLegalMoves().Length, board.ZobristKey % 16777216, depth <= 0);
 			// summoning demons by reusing local variables
 			// score is a counter variable
 			// Tuned material values were 977, 496, 335, 318, and 91
@@ -49,18 +49,27 @@ public class P4kBot : IChessBot
 			// one could remove this else if and merge the condition into the previous
 			// but this causes an extra move generation to be done on rfp which seems to slow down the engine by a lot
 			// I won't do this unless I'm sure I can make those tokens worth it
-			else if (depth <= 6 && eval >= beta + 80 * depth)
+			else if (notPV && depth <= 6 && eval >= beta + 80 * depth)
 				return eval;
 
 			foreach (Move move in board.GetLegalMoves(qsearch).OrderByDescending(move => (ttMoves[key] == move, move.CapturePieceType, history[move.RawValue & 4095])))
 			{
-				if (bestScore >= beta || !qsearch && !move.IsCapture && eval + 120 * depth + 80 < alpha)
+				if (bestScore >= beta || notPV && !move.IsCapture && eval + 120 * depth + 80 < alpha)
 					break;
 #if UCI_OUTPUT
 				nodes++;
 #endif
 				board.MakeMove(move);
-				score = board.IsDraw() ? 0 : -Search(board.IsInCheck() ? depth : depth - 1, -beta, -alpha, false);
+				if (first || qsearch)
+				{
+					score = board.IsDraw() ? 0 : -Search(board.IsInCheck() ? depth : depth - 1, -beta, -alpha, false);
+				}
+				else
+				{
+					score = board.IsDraw() ? 0 : -Search(board.IsInCheck() ? depth : depth - 1, ~alpha, -alpha, false);
+					if (score > alpha && !notPV)
+						score = board.IsDraw() ? 0 : -Search(board.IsInCheck() ? depth : depth - 1, -beta, -alpha, false);
+				}
 				board.UndoMove(move);
 				if (score > bestScore)
 				{
@@ -71,6 +80,7 @@ public class P4kBot : IChessBot
 					if (score >= beta && !move.IsCapture)
 						history[move.RawValue & 4095] += depth * depth;
 				}
+				first = false;
 			}
 			return bestScore;
 		}
