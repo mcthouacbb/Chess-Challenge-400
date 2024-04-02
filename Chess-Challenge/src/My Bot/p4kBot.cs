@@ -54,7 +54,7 @@ public class P4kBot : IChessBot
 
 			foreach (Move move in board.GetLegalMoves(qsearch).OrderByDescending(move => (ttMoves[key] == move, move.CapturePieceType, history[move.RawValue & 4095])))
 			{
-				if (bestScore >= beta || !qsearch && !move.IsCapture && eval + 120 * depth + 80 < alpha)
+				if (bestScore >= beta || depth < 4 && !move.IsPromotion && eval + (0b1_0001101100_1001011000_0110001100_0101111010_0010011000_0000000000 >> (int)move.CapturePieceType * 10 & 0x7FF) + 120 * Max(depth, 0) + 80 < alpha)
 					break;
 #if UCI_OUTPUT
 				nodes++;
