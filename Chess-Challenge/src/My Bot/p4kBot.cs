@@ -1,4 +1,4 @@
-﻿//#define UCI_OUTPUT
+﻿#define UCI_OUTPUT
 
 using ChessChallenge.API;
 using System.Linq;
@@ -14,7 +14,7 @@ public class P4kBot : IChessBot
 	public Move Think(Board board, Timer timer)
 	{
 		var (psqts, history, depth) = (new[] {
-			0x003c23120f0e0f00UL, 0x273b42403e3b3733UL, 0x333b3f3b3d3d3b35UL, 0x595a585653505051UL, 0xa7a7ada7a6a5a5a3UL, 0x7090706050201UL, 0xe151110100e110eUL, 0x292e333333312d26UL, 0x353a373838393833UL, 0x5054585a5b5a5855UL, 0xacacacababa9a7a3UL, 0x50c080806080700UL,
+			0x3723130f0e0f00UL, 0x283a42413c37322bUL, 0x363b41403e3d3a34UL, 0x5f605e5a55525152UL, 0xadafb3afaba9a7a4UL, 0xd110e09050302UL, 0xe161111100f120fUL, 0x2d32363636332f28UL, 0x3539383838383733UL, 0x5159595b5c5b5855UL, 0xadacacababaaa7a4UL, 0x408040405070700UL,
 		}, new int[4096], 0);
 		// putting search in here so we can use board without parameter(idea from antares)
 		int Search(int depth, int alpha, int beta, bool root)
@@ -23,7 +23,7 @@ public class P4kBot : IChessBot
 				depth /= 0;
 			// subtracting depth from bestScore handles prioritizing shorter mates
 			// bestScore will be set to eval in qsearch so this does not change anything for depth <= 0
-			var (bestScore, score, eval, key, qsearch) = (-30000 - depth, 0, board.GetLegalMoves().Length, board.ZobristKey % 16777216, depth <= 0);
+			var (bestScore, score, eval, key, qsearch) = (-30000 - depth, 0, 21, board.ZobristKey % 16777216, depth <= 0);
 			// summoning demons by reusing local variables
 			// score is a counter variable
 			// Tuned material values were 977, 496, 335, 318, and 91
