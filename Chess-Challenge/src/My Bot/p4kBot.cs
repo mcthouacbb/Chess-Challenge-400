@@ -1,10 +1,10 @@
-﻿#define UCI_OUTPUT
+﻿// #define UCI_OUTPUT
 
 using ChessChallenge.API;
 using System.Linq;
 using static System.Math;
 
-public class P4kBot : IChessBot
+public class p4kBot : IChessBot
 {
 #if UCI_OUTPUT
 	ulong nodes;
@@ -21,13 +21,11 @@ public class P4kBot : IChessBot
 		{
 			if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 4)
 				depth /= 0;
-			// subtracting depth from bestScore handles prioritizing shorter mates
+			// subtracting depth from bestScore handles prioritizing shorter mates	
 			// bestScore will be set to eval in qsearch so this does not change anything for depth <= 0
-			var (bestScore, score, eval, key, qsearch) = (-30000 - depth, 0, 21, board.ZobristKey % 16777216, depth <= 0);
+			var (bestScore, score, eval, key, qsearch, movesTried) = (-30000 - depth, 0, 21, board.ZobristKey % 16777216, depth <= 0, 0);
 			// summoning demons by reusing local variables
 			// score is a counter variable
-			// Tuned material values were 977, 496, 335, 318, and 91
-			// approximated values are 976, 492, 336, 320, and 96
 			foreach (PieceList pieceList in board.GetAllPieceLists())
 			{
 				foreach (Piece piece in pieceList)
@@ -60,7 +58,10 @@ public class P4kBot : IChessBot
 				nodes++;
 #endif
 				board.MakeMove(move);
-				score = board.IsDraw() ? 0 : -Search(board.IsInCheck() ? depth : depth - 1, -beta, -alpha, false);
+				bool reduce = movesTried++ > 10 && depth > 4;
+				do 
+					score = board.IsDraw() ? 0 : -Search((board.IsInCheck() ? depth : depth - 1) - (reduce ? movesTried / 10 : 0), -beta, -alpha, false);
+				while (score > alpha && !(reduce = !reduce));
 				board.UndoMove(move);
 				if (score > bestScore)
 				{
