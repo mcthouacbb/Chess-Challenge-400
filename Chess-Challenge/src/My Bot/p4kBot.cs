@@ -4,7 +4,7 @@ using ChessChallenge.API;
 using System.Linq;
 using static System.Math;
 
-public class p4kBot : IChessBot
+public class P4kBot : IChessBot
 {
 #if UCI_OUTPUT
 	ulong nodes;
