@@ -1,4 +1,4 @@
-﻿#define UCI_OUTPUT
+﻿//#define UCI_OUTPUT
 
 using ChessChallenge.API;
 using System.Linq;
