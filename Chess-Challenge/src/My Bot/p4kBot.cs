@@ -1,4 +1,4 @@
-﻿#define UCI_OUTPUT
+﻿//#define UCI_OUTPUT
 
 using ChessChallenge.API;
 using System.Linq;
@@ -54,13 +54,13 @@ public class P4kBot : IChessBot
 
 			foreach (Move move in board.GetLegalMoves(qsearch).OrderByDescending(move => (ttMoves[key] == move, move.CapturePieceType, history[move.RawValue & 4095])))
 			{
-				if (bestScore >= beta || depth < 4 && !move.IsPromotion && eval + (0b_1111011100_0111111100_0101000001_0100110000_0001101110_0000000000 >> (int)move.CapturePieceType * 10 & 0x7FF) + 120 * Max(depth, 0) + 80 < alpha)
+				if (bestScore >= beta || depth < 4 && !move.IsPromotion && eval + (0b_1111011100_0111111100_0101000001_0100110000_0001101110_0000000000 >> (int)move.CapturePieceType * 10 & 0x7FF) + 120 * depth + 80 < alpha)
 					break;
 #if UCI_OUTPUT
 				nodes++;
 #endif
 				board.MakeMove(move);
-				score = board.IsDraw() ? 0 : -Search(board.IsInCheck() ? depth : depth - 1, -beta, -alpha, false);
+				score = board.IsDraw() ? 0 : -Search(qsearch || board.IsInCheck() ? depth : depth - 1, -beta, -alpha, false);
 				board.UndoMove(move);
 				if (score > bestScore)
 				{
@@ -100,20 +100,16 @@ public class P4kBot : IChessBot
 			return default;
 		}
 #endif
-		try
+		while (timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 30)
+#if UCI_OUTPUT
 		{
-			while (timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 30)
-#if UCI_OUTPUT
-			{
-				int score =
+			int score =
 #endif
-				Search(++depth, -10000000, 10000000, true);
+			Search(++depth, -10000000, 10000000, true);
 #if UCI_OUTPUT
-				System.Console.WriteLine($"info depth {depth} score cp {score} time {timer.MillisecondsElapsedThisTurn} nodes {nodes} nps {nodes * 1000 / (ulong)Max(timer.MillisecondsElapsedThisTurn, 1)} pv {rootBestMove.ToString().Substring(7, rootBestMove.ToString().Length - 8)}");
-			}
-#endif
+			System.Console.WriteLine($"info depth {depth} score cp {score} time {timer.MillisecondsElapsedThisTurn} nodes {nodes} nps {nodes * 1000 / (ulong)Max(timer.MillisecondsElapsedThisTurn, 1)} pv {rootBestMove.ToString().Substring(7, rootBestMove.ToString().Length - 8)}");
 		}
-		catch { }
+#endif
 		return rootBestMove;
 	}
 }

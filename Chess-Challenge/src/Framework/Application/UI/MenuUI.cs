@@ -77,6 +77,10 @@ namespace ChessChallenge.Application
 			{
 				controller.StartNewBotMatch(ChallengeController.PlayerType.NOSPRTBot, ChallengeController.PlayerType.P4kBot);
 			}
+			if (NextButtonInRow("Tyrant400Bot vs P4kBot", ref buttonPos, spacing, buttonSize))
+			{
+				controller.StartNewBotMatch(ChallengeController.PlayerType.Tyrant400Bot, ChallengeController.PlayerType.P4kBot);
+			}
 			if (NextButtonInRow("EvilBot vs P4kBot", ref buttonPos, spacing, buttonSize))
 			{
 				controller.StartNewBotMatch(ChallengeController.PlayerType.EvilBot, ChallengeController.PlayerType.P4kBot);
