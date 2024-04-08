@@ -1,4 +1,4 @@
-﻿#define UCI_OUTPUT
+﻿//#define UCI_OUTPUT
 
 using ChessChallenge.API;
 using System.Linq;
@@ -19,8 +19,6 @@ public class P4kBot : IChessBot
 		// putting search in here so we can use board without parameter(idea from antares)
 		int Search(int depth, int alpha, int beta, bool root)
 		{
-			if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 4)
-				depth /= 0;
 			// subtracting depth from bestScore handles prioritizing shorter mates
 			// bestScore will be set to eval in qsearch so this does not change anything for depth <= 0
 			var (bestScore, score, eval, key, qsearch) = (-30000 - depth, 0, 21, board.ZobristKey % 16777216, depth <= 0);
@@ -43,25 +41,28 @@ public class P4kBot : IChessBot
 			//if (root)
 			//System.Console.WriteLine(eval);
 
-			if (qsearch)
+			if (qsearch || depth <= 6 && eval >= beta + 80 * depth)
 				// thanks to boychesser for this trick
 				alpha = Max(alpha, bestScore = eval);
 			// one could remove this else if and merge the condition into the previous
 			// but this causes an extra move generation to be done on rfp which seems to slow down the engine by a lot
 			// I won't do this unless I'm sure I can make those tokens worth it
-			else if (depth <= 6 && eval >= beta + 80 * depth)
+
+			if (bestScore >= beta)
 				return eval;
 
 			foreach (Move move in board.GetLegalMoves(qsearch).OrderByDescending(move => (ttMoves[key] == move, move.CapturePieceType, history[move.RawValue & 4095])))
 			{
-				if (bestScore >= beta || depth < 4 && !move.IsPromotion && eval + (0b_1111011100_0111111100_0101000001_0100110000_0001101110_0000000000 >> (int)move.CapturePieceType * 10 & 0x7FF) + 120 * Max(depth, 0) + 80 < alpha)
-					break;
 #if UCI_OUTPUT
 				nodes++;
 #endif
 				board.MakeMove(move);
 				score = board.IsDraw() ? 0 : -Search(board.IsInCheck() ? depth : depth - 1, -beta, -alpha, false);
 				board.UndoMove(move);
+
+				if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 4)
+					return 0;
+
 				if (score > bestScore)
 				{
 					alpha = Max(alpha, bestScore = score);
@@ -71,6 +72,8 @@ public class P4kBot : IChessBot
 					if (score >= beta && !move.IsCapture)
 						history[move.RawValue & 4095] += depth * depth;
 				}
+				if (score >= beta || depth < 4 && !move.IsPromotion && eval + (0b_1111011100_0111111100_0101000001_0100110000_0001101110_0000000000 >> (int)move.CapturePieceType * 10 & 0x7FF) + 120 * Max(depth, 0) + 80 < alpha)
+					break;
 			}
 			return bestScore;
 		}
@@ -100,20 +103,16 @@ public class P4kBot : IChessBot
 			return default;
 		}
 #endif
-		try
-		{
-			while (timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 30)
+		while (timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 30)
 #if UCI_OUTPUT
-			{
-				int score =
+		{
+			int score =
 #endif
 				Search(++depth, -10000000, 10000000, true);
 #if UCI_OUTPUT
-				System.Console.WriteLine($"info depth {depth} score cp {score} time {timer.MillisecondsElapsedThisTurn} nodes {nodes} nps {nodes * 1000 / (ulong)Max(timer.MillisecondsElapsedThisTurn, 1)} pv {rootBestMove.ToString().Substring(7, rootBestMove.ToString().Length - 8)}");
-			}
-#endif
+			System.Console.WriteLine($"info depth {depth} score cp {score} time {timer.MillisecondsElapsedThisTurn} nodes {nodes} nps {nodes * 1000 / (ulong)Max(timer.MillisecondsElapsedThisTurn, 1)} pv {rootBestMove.ToString().Substring(7, rootBestMove.ToString().Length - 8)}");
 		}
-		catch { }
+#endif
 		return rootBestMove;
 	}
 }
