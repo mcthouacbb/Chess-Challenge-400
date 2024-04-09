@@ -21,7 +21,7 @@ public class P4kBot : IChessBot
 		{
 			// subtracting depth from bestScore handles prioritizing shorter mates
 			// bestScore will be set to eval in qsearch so this does not change anything for depth <= 0
-			var (bestScore, score, eval, key, qsearch) = (-30000 - depth, 0, 21, board.ZobristKey % 16777216, depth <= 0);
+			var (bestScore, score, eval, key, qsearch, canPrune) = (-30000 - depth, 0, 21, board.ZobristKey % 16777216, depth <= 0, depth <= 4 && !board.IsInCheck());
 			// summoning demons by reusing local variables
 			// score is a counter variable
 			// Tuned material values were 977, 496, 335, 318, and 91
@@ -41,7 +41,7 @@ public class P4kBot : IChessBot
 			//if (root)
 			//System.Console.WriteLine(eval);
 
-			if (qsearch || depth <= 6 && eval >= beta + 80 * depth)
+			if (qsearch || canPrune && eval >= beta + 80 * depth)
 				// thanks to boychesser for this trick
 				alpha = Max(alpha, bestScore = eval);
 			// one could remove this else if and merge the condition into the previous
@@ -72,7 +72,7 @@ public class P4kBot : IChessBot
 					if (score >= beta && !move.IsCapture)
 						history[move.RawValue & 4095] += depth * depth;
 				}
-				if (score >= beta || depth < 4 && !move.IsPromotion && eval + (0b_1111011100_0111111100_0101000001_0100110000_0001101110_0000000000 >> (int)move.CapturePieceType * 10 & 0x7FF) + 120 * Max(depth, 0) + 80 < alpha)
+				if (score >= beta || canPrune && !move.IsPromotion && eval + (0b_1111011100_0111111100_0101000001_0100110000_0001101110_0000000000 >> (int)move.CapturePieceType * 10 & 0x7FF) + 120 * Max(depth, 0) + 80 < alpha)
 					break;
 			}
 			return bestScore;
