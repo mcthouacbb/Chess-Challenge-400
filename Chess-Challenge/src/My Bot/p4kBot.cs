@@ -21,7 +21,7 @@ public class P4kBot : IChessBot
 		{
 			// subtracting depth from bestScore handles prioritizing shorter mates
 			// bestScore will be set to eval in qsearch so this does not change anything for depth <= 0
-			var (bestScore, score, eval, key, qsearch, canPrune) = (-30000 - depth, 0, 21, board.ZobristKey % 16777216, depth <= 0, depth <= 4 && !board.IsInCheck());
+			var (bestScore, score, eval, key, qsearch, movesTried) = (-30000 - depth, 0, 21, board.ZobristKey % 16777216, depth <= 0, 0);
 			// summoning demons by reusing local variables
 			// score is a counter variable
 			// Tuned material values were 977, 496, 335, 318, and 91
@@ -41,7 +41,7 @@ public class P4kBot : IChessBot
 			//if (root)
 			//System.Console.WriteLine(eval);
 
-			if (qsearch || canPrune && eval >= beta + 80 * depth)
+			if (qsearch || depth <= 4 && !board.IsInCheck() && eval >= beta + 80 * depth)
 				// thanks to boychesser for this trick
 				alpha = Max(alpha, bestScore = eval);
 			// one could remove this else if and merge the condition into the previous
@@ -57,7 +57,11 @@ public class P4kBot : IChessBot
 				nodes++;
 #endif
 				board.MakeMove(move);
-				score = board.IsDraw() ? 0 : -Search(board.IsInCheck() ? depth : depth - 1, -beta, -alpha, false);
+				bool notReduce = movesTried++ <= 10 || depth <= 4;
+				do
+					score = board.IsDraw() ? 0 : -Search(depth - (board.IsInCheck() ? 0 : 1) - (notReduce ? 0 : movesTried / 10), -beta, -alpha, false);
+				while (score > alpha && (notReduce = !notReduce));
+
 				board.UndoMove(move);
 
 				if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 4)
