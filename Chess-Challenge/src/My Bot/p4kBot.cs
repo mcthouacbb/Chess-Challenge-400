@@ -1,4 +1,4 @@
-﻿#define UCI_OUTPUT
+﻿// #define UCI_OUTPUT
 
 using ChessChallenge.API;
 using System.Linq;
@@ -59,7 +59,7 @@ public class P4kBot : IChessBot
 				board.MakeMove(move);
 				bool notReduce = movesTried++ <= 10 || depth <= 4;
 				do
-					score = board.IsDraw() ? 0 : -Search(depth - (board.IsInCheck() ? 0 : 1) - (notReduce ? 0 : movesTried / 10), -beta, -alpha, false);
+					score = board.IsDraw() ? 0 : -Search(board.IsInCheck() ? depth : depth - (notReduce ? 1 : 1 + movesTried / 10), -beta, -alpha, false);
 				while (score > alpha && (notReduce = !notReduce));
 
 				board.UndoMove(move);
