@@ -69,11 +69,13 @@ public class P4kBot : IChessBot
 					ttMoves[key] = move;
 					if (root)
 						rootBestMove = move;
-					if (score >= beta && !move.IsCapture)
-						history[move.RawValue & 4095] += depth * depth;
 				}
-				if (score >= beta || canPrune && !move.IsPromotion && eval + (0b_1111011100_0111111100_0101000001_0100110000_0001101110_0000000000 >> (int)move.CapturePieceType * 10 & 0x7FF) + 120 * Max(depth, 0) + 80 < alpha)
+				if (score >= beta)
+				{
+					if (!move.IsCapture)
+						history[move.RawValue & 4095] += depth * depth;
 					break;
+				}
 			}
 			return bestScore;
 		}
