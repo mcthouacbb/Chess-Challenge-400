@@ -59,7 +59,7 @@ public class P4kBotOld : IChessBot
 				nodes++;
 #endif
 				board.MakeMove(move);
-				bool notReduce = movesTried++ <= 20 || depth <= 4;
+				bool notReduce = movesTried++ <= 20 || depth <= 3;
 				do
 					score = board.IsDraw() ? 0 : -Search(depth - (notReduce ? 1 : movesTried / 10), -beta, -alpha, false);
 				while (score > alpha && (notReduce = !notReduce));
