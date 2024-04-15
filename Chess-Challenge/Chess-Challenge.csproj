@@ -29,7 +29,7 @@
     <Compile Update="src\My Bot\p2kBot.cs">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Compile>
-    <Compile Update="src\My Bot\p4kBot.cs">
+    <Compile Update="src\My Bot\AtadOfANoobBot.cs">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Compile>
     <Compile Update="src\Framework\Application\UI\BotBrainCapacityUI.cs">

@@ -1,11 +1,11 @@
-﻿#define UCI_OUTPUT
+﻿// #define UCI_OUTPUT
 
 using ChessChallenge.API;
 using System.Linq;
 // this using saves tokens
 using static System.Math;
 
-public class P4kBot : IChessBot
+public class AtadOfANoobBot : IChessBot
 {
 #if UCI_OUTPUT
 	ulong nodes;
