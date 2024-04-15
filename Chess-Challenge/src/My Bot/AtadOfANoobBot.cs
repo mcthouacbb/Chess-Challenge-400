@@ -65,7 +65,7 @@ public class AtadOfANoobBot : IChessBot
 #endif
 				board.MakeMove(move);
 				// reduce when movesTried > 10 and depth > 3
-				bool notReduce = movesTriedPlusTen++ <= 20 || depth <= 3;
+				bool notReduce = movesTriedPlusTen++ <= 20 || depth <= 2;
 
 				// this crazy do while loop does the reduced depth search and the lmr research
 				// due to the token limit there is no pvs
