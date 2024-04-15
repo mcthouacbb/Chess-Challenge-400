@@ -63,21 +63,21 @@ namespace ChessChallenge.Application
 				var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.MyBot : ChallengeController.PlayerType.Human;
 				controller.StartNewGame(whiteType, blackType);
 			}
-            if (NextButtonInRow("Human vs P4kBot", ref buttonPos, spacing, buttonSize))
+            if (NextButtonInRow("Human vs AtadOfANoobBot", ref buttonPos, spacing, buttonSize))
 			{
 				var whiteType = controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.AtadOfANoobBot : ChallengeController.PlayerType.Human;
 				var blackType = !controller.HumanWasWhiteLastGame ? ChallengeController.PlayerType.AtadOfANoobBot : ChallengeController.PlayerType.Human;
 				controller.StartNewGame(whiteType, blackType);
 			}
-			if (NextButtonInRow("P4kBot vs P4kBotOld", ref buttonPos, spacing, buttonSize))
+			if (NextButtonInRow("AtadOfANoobBot vs P4kBotOld", ref buttonPos, spacing, buttonSize))
 			{
 				controller.StartNewBotMatch(ChallengeController.PlayerType.AtadOfANoobBot, ChallengeController.PlayerType.P4kBotOld);
 			}
-			if (NextButtonInRow("NOSPRTBot vs P4kBot", ref buttonPos, spacing, buttonSize))
+			if (NextButtonInRow("NOSPRTBot vs AtadOfANoobBot", ref buttonPos, spacing, buttonSize))
 			{
 				controller.StartNewBotMatch(ChallengeController.PlayerType.NOSPRTBot, ChallengeController.PlayerType.AtadOfANoobBot);
 			}
-			if (NextButtonInRow("EvilBot vs P4kBot", ref buttonPos, spacing, buttonSize))
+			if (NextButtonInRow("EvilBot vs AtadOfANoobBot", ref buttonPos, spacing, buttonSize))
 			{
 				controller.StartNewBotMatch(ChallengeController.PlayerType.EvilBot, ChallengeController.PlayerType.AtadOfANoobBot);
 			}

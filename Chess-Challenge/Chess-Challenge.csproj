@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="src\My Bot\AtadOfANoobBot.cs~RFb4491a94.TMP" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Raylib-cs" Version="4.5.0.2" />
   </ItemGroup>
 

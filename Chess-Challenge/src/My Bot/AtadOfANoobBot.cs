@@ -1,15 +1,10 @@
-﻿// #define UCI_OUTPUT
-
-using ChessChallenge.API;
+﻿using ChessChallenge.API;
 using System.Linq;
 // this using saves tokens
 using static System.Math;
 
 public class AtadOfANoobBot : IChessBot
 {
-#if UCI_OUTPUT
-	ulong nodes;
-#endif
 	Move rootBestMove;
 	Move[] ttMoves = new Move[16777216];
 	public Move Think(Board board, Timer timer)
@@ -60,9 +55,6 @@ public class AtadOfANoobBot : IChessBot
 			// thanks to CJ for showing me this tuple ordering trick
 			foreach (Move move in board.GetLegalMoves(qsearch).OrderByDescending(move => (ttMoves[key] == move, move.CapturePieceType, history[move.RawValue & 4095])))
 			{
-#if UCI_OUTPUT
-				nodes++;
-#endif
 				board.MakeMove(move);
 				// reduce when movesTried > 10 and depth > 3
 				bool notReduce = movesTriedPlusTen++ <= 20 || depth <= 3;
@@ -99,43 +91,11 @@ public class AtadOfANoobBot : IChessBot
 
 			return bestScore;
 		}
-#if UCI_OUTPUT
-		nodes = 0;
-#endif
-		// this is the most horrid bench implementation I have ever written, I wholeheartedly hope that no living creature
-		// will ever be closer than 1000 lightyears to such abominations as I have written here.
-#if UCI_OUTPUT
-		if (timer.MillisecondsRemaining >= 100000000)
-		{
-			nodes = 0;
-			int benchDepth = timer.OpponentMillisecondsRemaining;
-			int startTime = timer.MillisecondsElapsedThisTurn;
-			for (depth = 1;  depth <= benchDepth; depth++)
-			{
-				Search(depth, -10000000, 10000000, true);
-				//Console.WriteLine($"Mine Depth: {depth}, Move: {bestMoveRoot} eval: {eval}, nodes: {nodes}, alpha: {alpha}, beta: {beta}");
-				//Console.WriteLine($"Timer: {timer.MillisecondsElapsedThisTurn}, t: {timer.MillisecondsRemaining / 15}");
-				if (timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 50)
-					break;
-			}
-			int endTime = timer.MillisecondsElapsedThisTurn;
-			int time = endTime - startTime;
 
-			System.Console.WriteLine($"Fen: {board.GetFenString()}, Bench Depth: {benchDepth}, nodes: {nodes}, time: {time}");
-			return default;
-		}
-#endif
 		// soft time check
 		while (timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 30)
-#if UCI_OUTPUT
-		{
-			int score =
-#endif
 				Search(++depth, -10000000, 10000000, true);
-#if UCI_OUTPUT
-			System.Console.WriteLine($"info depth {depth} score cp {score} time {timer.MillisecondsElapsedThisTurn} nodes {nodes} nps {nodes * 1000 / (ulong)Max(timer.MillisecondsElapsedThisTurn, 1)} pv {rootBestMove.ToString().Substring(7, rootBestMove.ToString().Length - 8)}");
-		}
-#endif
+
 		return rootBestMove;
 	}
 }
